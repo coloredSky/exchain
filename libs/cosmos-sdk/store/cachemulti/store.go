@@ -144,6 +144,14 @@ var (
 	}
 )
 
+func (cms Store) GetStoreKey() map[string]types.StoreKey {
+	ans := make(map[string]types.StoreKey)
+	for k, _ := range cms.stores {
+		ans[k.Name()] = k
+	}
+	return ans
+}
+
 func (cms Store) Display() (map[types.StoreKey]int, map[types.StoreKey]int) {
 	r := make(map[types.StoreKey]int, 0)
 	w := make(map[types.StoreKey]int, 0)

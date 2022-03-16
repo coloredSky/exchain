@@ -78,13 +78,17 @@ func (store *Store) Get(key []byte) (value []byte) {
 	return value
 }
 
+func (store *Store) GetStoreKey() map[string]types.StoreKey {
+	panic("not implement")
+}
+
 func (store *Store) Display() (map[types.StoreKey]int, map[types.StoreKey]int) {
 	store.mtx.Lock()
 	defer store.mtx.Unlock()
 
 	for k, v := range store.dirty {
 		if !v.dirty {
-			fmt.Println("?????", hex.EncodeToString([]byte(k)), v.dirty, v.deleted, hex.EncodeToString(v.value))
+			fmt.Println("fuck--", hex.EncodeToString([]byte(k)), v.dirty, v.deleted, hex.EncodeToString(v.value))
 		}
 	}
 	return map[types.StoreKey]int{types.NullStoreKey: len(store.readList)}, map[types.StoreKey]int{types.NullStoreKey: len(store.dirty)}

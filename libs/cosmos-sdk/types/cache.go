@@ -1,11 +1,12 @@
 package types
 
 import (
+	"bytes"
+	"encoding/hex"
 	"fmt"
 	ethcmn "github.com/ethereum/go-ethereum/common"
 	"github.com/okex/exchain/libs/cosmos-sdk/store/types"
 	"github.com/okex/exchain/libs/tendermint/crypto"
-	"github.com/okex/exchain/libs/tendermint/libs/log"
 	"github.com/spf13/viper"
 	"sync"
 	"time"
@@ -40,19 +41,22 @@ type account interface {
 }
 
 type storageWithCache struct {
-	value []byte
-	dirty bool
+	Value  []byte
+	Dirty  bool
+	Delete bool
 }
 
 type accountWithCache struct {
-	acc     account
-	gas     uint64
-	isDirty bool
+	Acc      account
+	Gas      uint64
+	Bz       []byte
+	IsDirty  bool
+	ISDelete bool
 }
 
 type codeWithCache struct {
-	code    []byte
-	isDirty bool
+	Code    []byte
+	IsDirty bool
 }
 
 type Cache struct {
@@ -62,9 +66,14 @@ type Cache struct {
 	parent    *Cache
 	gasConfig types.GasConfig
 
-	storageMap map[ethcmn.Address]map[ethcmn.Hash]*storageWithCache
-	accMap     map[ethcmn.Address]*accountWithCache
-	codeMap    map[ethcmn.Hash]*codeWithCache
+	dirtyStorageMap map[ethcmn.Address]map[ethcmn.Hash]*storageWithCache
+	readStorageMap  map[ethcmn.Address]map[ethcmn.Hash][]byte
+
+	dirtyaccMap map[ethcmn.Address]*accountWithCache
+	readaccMap  map[ethcmn.Address]*accountWithCache
+
+	dirtycodeMap map[ethcmn.Hash]*codeWithCache
+	readcodeMap  map[ethcmn.Hash][]byte
 }
 
 func initCacheParam() {
@@ -93,12 +102,21 @@ func NewCache(parent *Cache, useCache bool) *Cache {
 		useCache: useCache,
 		parent:   parent,
 
-		storageMap: make(map[ethcmn.Address]map[ethcmn.Hash]*storageWithCache, 0),
-		accMap:     make(map[ethcmn.Address]*accountWithCache, 0),
-		codeMap:    make(map[ethcmn.Hash]*codeWithCache),
-		gasConfig:  types.KVGasConfig(),
+		dirtyStorageMap: make(map[ethcmn.Address]map[ethcmn.Hash]*storageWithCache, 0),
+		readStorageMap:  make(map[ethcmn.Address]map[ethcmn.Hash][]byte, 0),
+
+		dirtyaccMap: make(map[ethcmn.Address]*accountWithCache, 0),
+		readaccMap:  make(map[ethcmn.Address]*accountWithCache, 0),
+
+		dirtycodeMap: make(map[ethcmn.Hash]*codeWithCache),
+		readcodeMap:  make(map[ethcmn.Hash][]byte),
+		gasConfig:    types.KVGasConfig(),
 	}
 
+}
+
+func (c *Cache) UseCache() bool {
+	return !c.skip()
 }
 
 func (c *Cache) skip() bool {
@@ -108,33 +126,56 @@ func (c *Cache) skip() bool {
 	return false
 }
 
-func (c *Cache) UpdateAccount(addr AccAddress, acc account, lenBytes int, isDirty bool) {
+func (c *Cache) DeleteCacheAccount(acc ethcmn.Address) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.readaccMap, acc)
+}
+
+func (c *Cache) UpdateAccount(addr AccAddress, acc account, bz []byte, isDirty bool, isDelete bool) {
 	if c.skip() {
 		return
 	}
 	ethAddr := ethcmn.BytesToAddress(addr.Bytes())
 
+	tt := &accountWithCache{
+		Acc:      acc,
+		IsDirty:  isDirty,
+		ISDelete: isDelete,
+		Bz:       bz,
+		Gas:      types.Gas(len(bz))*c.gasConfig.ReadCostPerByte + c.gasConfig.ReadCostFlat,
+	}
+
 	c.mu.Lock()
-	c.accMap[ethAddr] = &accountWithCache{
-		acc:     acc,
-		isDirty: isDirty,
-		gas:     types.Gas(lenBytes)*c.gasConfig.ReadCostPerByte + c.gasConfig.ReadCostFlat,
+	if !isDirty {
+		c.readaccMap[ethAddr] = tt
+	} else {
+		c.dirtyaccMap[ethAddr] = tt
 	}
 	c.mu.Unlock()
 }
 
-func (c *Cache) UpdateStorage(addr ethcmn.Address, key ethcmn.Hash, value []byte, isDirty bool) {
+func (c *Cache) UpdateStorage(addr ethcmn.Address, key ethcmn.Hash, value []byte, isDirty bool, isDelete bool) {
 	if c.skip() {
 		return
 	}
 
 	c.mu.Lock()
-	if _, ok := c.storageMap[addr]; !ok {
-		c.storageMap[addr] = make(map[ethcmn.Hash]*storageWithCache, 0)
-	}
-	c.storageMap[addr][key] = &storageWithCache{
-		value: value,
-		dirty: isDirty,
+	if isDirty {
+		if _, ok := c.dirtyStorageMap[addr]; !ok {
+			c.dirtyStorageMap[addr] = make(map[ethcmn.Hash]*storageWithCache, 0)
+		}
+
+		c.dirtyStorageMap[addr][key] = &storageWithCache{
+			Value:  value,
+			Dirty:  isDirty,
+			Delete: isDelete,
+		}
+	} else {
+		if _, ok := c.readStorageMap[addr]; !ok {
+			c.readStorageMap[addr] = make(map[ethcmn.Hash][]byte, 0)
+		}
+		c.readStorageMap[addr][key] = value
 	}
 	c.mu.Unlock()
 }
@@ -145,50 +186,94 @@ func (c *Cache) UpdateCode(key []byte, value []byte, isdirty bool) {
 	}
 	hash := ethcmn.BytesToHash(key)
 	c.mu.Lock()
-	c.codeMap[hash] = &codeWithCache{
-		code:    value,
-		isDirty: isdirty,
+	if isdirty {
+		c.dirtycodeMap[hash] = &codeWithCache{
+			Code:    value,
+			IsDirty: isdirty,
+		}
+	} else {
+		c.readcodeMap[hash] = value
 	}
+
 	c.mu.Unlock()
 }
 
-func (c *Cache) GetAccount(addr ethcmn.Address) (account, uint64, bool) {
+func (c *Cache) setReadAccount(addr ethcmn.Address, acc account, bz []byte, gas uint64) {
+	c.readaccMap[addr] = &accountWithCache{
+		Acc:     acc,
+		Gas:     gas,
+		Bz:      bz,
+		IsDirty: false,
+	}
+}
+
+func (c *Cache) GetAccount(addr ethcmn.Address) (account, uint64, []byte, bool) {
 	if c.skip() {
-		return nil, 0, false
+		return nil, 0, nil, false
 	}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if data, ok := c.accMap[addr]; ok {
-		return data.acc, data.gas, ok
+
+	if data, ok := c.dirtyaccMap[addr]; ok {
+		return data.Acc, data.Gas, data.Bz, ok
+	}
+
+	if data, ok := c.readaccMap[addr]; ok {
+		return data.Acc, data.Gas, data.Bz, ok
 	}
 
 	if c.parent != nil {
-		acc, gas, ok := c.parent.GetAccount(addr)
-		return acc, gas, ok
+		acc, gas, bz, ok := c.parent.GetAccount(addr)
+		if ok {
+			c.setReadAccount(addr, acc, bz, gas)
+		}
+		return acc, gas, bz, ok
 	}
-	return nil, 0, false
+	return nil, 0, nil, false
 }
 
+func (c *Cache) setReadStorage(addr ethcmn.Address, key ethcmn.Hash, value []byte) {
+	if _, ok := c.readStorageMap[addr]; !ok {
+		c.readStorageMap[addr] = make(map[ethcmn.Hash][]byte)
+	}
+	c.readStorageMap[addr][key] = value
+}
 func (c *Cache) GetStorage(addr ethcmn.Address, key ethcmn.Hash) ([]byte, bool) {
 	if c.skip() {
 		return nil, false
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if _, hasAddr := c.storageMap[addr]; hasAddr {
-		data, hasKey := c.storageMap[addr][key]
+
+	if _, hasAddr := c.dirtyStorageMap[addr]; hasAddr {
+		data, hasKey := c.dirtyStorageMap[addr][key]
 		if hasKey {
-			return data.value, hasKey
+			return data.Value, hasKey
+		}
+	} else {
+		c.dirtyStorageMap[addr] = make(map[ethcmn.Hash]*storageWithCache)
+	}
+
+	if _, hasAddr := c.readStorageMap[addr]; hasAddr {
+		if data, hasKey := c.readStorageMap[addr][key]; hasKey {
+			return data, true
 		}
 	}
 
 	if c.parent != nil {
-		return c.parent.GetStorage(addr, key)
+		value, ok := c.parent.GetStorage(addr, key)
+		if ok {
+			c.setReadStorage(addr, key, value)
+		}
+		return value, ok
 	}
 	return nil, false
 }
 
+func (c *Cache) SetReadCode(hash ethcmn.Hash, value []byte) {
+	c.readcodeMap[hash] = value
+}
 func (c *Cache) GetCode(key []byte) ([]byte, bool) {
 	if c.skip() {
 		return nil, false
@@ -197,16 +282,34 @@ func (c *Cache) GetCode(key []byte) ([]byte, bool) {
 	hash := ethcmn.BytesToHash(key)
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if data, ok := c.codeMap[hash]; ok {
-		return data.code, ok
+	if data, ok := c.dirtycodeMap[hash]; ok {
+		return data.Code, ok
 	}
 
+	if data, ok := c.readcodeMap[hash]; ok {
+		return data, ok
+	}
 	if c.parent != nil {
-		return c.parent.GetCode(hash.Bytes())
+		code, ok := c.parent.GetCode(hash.Bytes())
+		if ok {
+			c.SetReadCode(hash, code)
+		}
+		return code, ok
 	}
 	return nil, false
 }
 
+func (c *Cache) GetDirtyAcc() map[ethcmn.Address]*accountWithCache {
+	return c.dirtyaccMap
+}
+
+func (c *Cache) GetDirtyCode() map[ethcmn.Hash]*codeWithCache {
+	return c.dirtycodeMap
+}
+
+func (c *Cache) GetDirtyStorage() map[ethcmn.Address]map[ethcmn.Hash]*storageWithCache {
+	return c.dirtyStorageMap
+}
 func (c *Cache) Write(updateDirty bool) {
 	if c.skip() {
 		return
@@ -224,108 +327,161 @@ func (c *Cache) Write(updateDirty bool) {
 }
 
 func (c *Cache) writeStorage(updateDirty bool) {
-	for addr, storages := range c.storageMap {
-		if _, ok := c.parent.storageMap[addr]; !ok {
-			c.parent.storageMap[addr] = make(map[ethcmn.Hash]*storageWithCache, 0)
+	for addr, storages := range c.dirtyStorageMap {
+		if _, ok := c.parent.dirtyStorageMap[addr]; !ok {
+			c.parent.dirtyStorageMap[addr] = make(map[ethcmn.Hash]*storageWithCache, 0)
 		}
 
 		for key, v := range storages {
-			if needWriteToParent(updateDirty, v.dirty) {
-				c.parent.storageMap[addr][key] = v
+			if updateDirty {
+				//if addr.String() == "0xadf4916d11F352a2748e19F3056428639313F6E1" {
+				//fmt.Println("writeStorage", addr.String(), key.String(), hex.EncodeToString(v.value))
+				//}
+				c.parent.dirtyStorageMap[addr][key] = v
 			}
 		}
 	}
-	c.storageMap = make(map[ethcmn.Address]map[ethcmn.Hash]*storageWithCache)
+	c.dirtyStorageMap = make(map[ethcmn.Address]map[ethcmn.Hash]*storageWithCache)
+	c.readStorageMap = make(map[ethcmn.Address]map[ethcmn.Hash][]byte)
 }
 
 func (c *Cache) writeAcc(updateDirty bool) {
-	for addr, v := range c.accMap {
-		if needWriteToParent(updateDirty, v.isDirty) {
-			c.parent.accMap[addr] = v
+	for addr, v := range c.dirtyaccMap {
+		if updateDirty {
+			c.parent.dirtyaccMap[addr] = v
 		}
 	}
-	c.accMap = make(map[ethcmn.Address]*accountWithCache)
+	c.dirtyaccMap = make(map[ethcmn.Address]*accountWithCache)
+	c.readaccMap = make(map[ethcmn.Address]*accountWithCache)
 }
 
 func (c *Cache) writeCode(updateDirty bool) {
-	for hash, v := range c.codeMap {
-		if needWriteToParent(updateDirty, v.isDirty) {
-			c.parent.codeMap[hash] = v
+	for hash, v := range c.dirtycodeMap {
+		if updateDirty {
+			c.parent.dirtycodeMap[hash] = v
 		}
 	}
-	c.codeMap = make(map[ethcmn.Hash]*codeWithCache)
+	c.dirtycodeMap = make(map[ethcmn.Hash]*codeWithCache)
+	c.readcodeMap = make(map[ethcmn.Hash][]byte)
 }
 
-func needWriteToParent(updateDirty bool, dirty bool) bool {
-	// not dirty
-	if !dirty {
-		return true
+func (c *Cache) IsConflict(newCache *Cache) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for acc, v := range newCache.readaccMap {
+		if data, ok := c.dirtyaccMap[acc]; ok && data.IsDirty {
+			if !bytes.Equal(v.Bz, data.Bz) {
+				fmt.Println("conflict-acc", acc.String())
+				return true
+			}
+		}
 	}
 
-	// dirty
-	if updateDirty {
-		return true
+	for acc, ss := range newCache.readStorageMap {
+		preSS, ok := c.dirtyStorageMap[acc]
+		if !ok {
+			continue
+		}
+		for kk, vv := range ss {
+			if pp, ok1 := preSS[kk]; ok1 && pp.Dirty {
+				if !bytes.Equal(pp.Value, vv) {
+					fmt.Println("conflict-storage", acc.String(), kk.String(), hex.EncodeToString(pp.Value), hex.EncodeToString(vv))
+					return true
+				}
+			}
+
+		}
+	}
+
+	for acc, code := range newCache.readcodeMap {
+		if data, ok := c.dirtycodeMap[acc]; ok && data.IsDirty {
+			if !bytes.Equal(code, data.Code) {
+				fmt.Println("conflict-code", acc.String())
+				return true
+			}
+		}
 	}
 	return false
 }
 
 func (c *Cache) storageSize() int {
 	lenStorage := 0
-	for _, v := range c.storageMap {
+	for _, v := range c.dirtyStorageMap {
 		lenStorage += len(v)
 	}
 	return lenStorage
 }
 
-func (c *Cache) TryDelete(logger log.Logger, height int64) {
-	if c.skip() {
-		return
-	}
-	if height%1000 == 0 {
-		c.logInfo(logger, "null")
-	}
+//func (c *Cache) TryDelete(logger log.Logger, height int64) {
+//	if c.skip() {
+//		return
+//	}
+//	if height%100 == 0 {
+//		c.logInfo(logger, "null")
+//	}
+//
+//	lenStorage := c.storageSize()
+//	if len(c.accMap) < maxAccInMap && lenStorage < maxStorageInMap {
+//		return
+//	}
+//
+//	deleteMsg := ""
+//	if len(c.accMap) >= maxAccInMap {
+//		deleteMsg += fmt.Sprintf("Acc:Deleted Before:%d", len(c.accMap))
+//		cnt := 0
+//		for key := range c.accMap {
+//			delete(c.accMap, key)
+//			cnt++
+//			if cnt > deleteAccCount {
+//				break
+//			}
+//		}
+//	}
+//
+//	if lenStorage >= maxStorageInMap {
+//		deleteMsg += fmt.Sprintf("Storage:Deleted Before:len(contract):%d, len(storage):%d", len(c.storageMap), lenStorage)
+//		cnt := 0
+//		for key, value := range c.storageMap {
+//			cnt += len(value)
+//			delete(c.storageMap, key)
+//			if cnt > deleteStorageCount {
+//				break
+//			}
+//		}
+//	}
+//	if deleteMsg != "" {
+//		c.logInfo(logger, deleteMsg)
+//	}
+//}
 
-	lenStorage := c.storageSize()
-	if len(c.accMap) < maxAccInMap && lenStorage < maxStorageInMap {
-		return
-	}
+//func (c *Cache) logInfo(logger log.Logger, deleteMsg string) {
+//	nowStats := fmt.Sprintf("len(acc):%d len(contracts):%d len(storage):%d", len(c.accMap), len(c.storageMap), c.storageSize())
+//	logger.Info("MultiCache", "deleteMsg", deleteMsg, "nowStats", nowStats)
+//}
 
-	deleteMsg := ""
-	if len(c.accMap) >= maxAccInMap {
-		deleteMsg += fmt.Sprintf("Acc:Deleted Before:%d", len(c.accMap))
-		cnt := 0
-		for key := range c.accMap {
-			delete(c.accMap, key)
-			cnt++
-			if cnt > deleteAccCount {
-				break
-			}
-		}
-	}
-
-	if lenStorage >= maxStorageInMap {
-		deleteMsg += fmt.Sprintf("Storage:Deleted Before:len(contract):%d, len(storage):%d", len(c.storageMap), lenStorage)
-		cnt := 0
-		for key, value := range c.storageMap {
-			cnt += len(value)
-			delete(c.storageMap, key)
-			if cnt > deleteStorageCount {
-				break
-			}
-		}
-	}
-	if deleteMsg != "" {
-		c.logInfo(logger, deleteMsg)
-	}
+func (c *Cache) GetParent() *Cache {
+	return c.parent
 }
 
-func (c *Cache) logInfo(logger log.Logger, deleteMsg string) {
-	nowStats := fmt.Sprintf("len(acc):%d len(contracts):%d len(storage):%d", len(c.accMap), len(c.storageMap), c.storageSize())
-	logger.Info("MultiCache", "deleteMsg", deleteMsg, "nowStats", nowStats)
-}
+func (c *Cache) Print(printLog bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	fmt.Println("size::::", len(c.dirtyaccMap), len(c.dirtyStorageMap), len(c.dirtycodeMap))
 
-func (c *Cache) Print() {
-	fmt.Println("size::::", len(c.accMap), len(c.storageMap), len(c.codeMap))
+	if !printLog {
+		return
+	}
+	for acc, v := range c.dirtyaccMap {
+		fmt.Println("acc:", acc.String(), v.IsDirty)
+	}
+	for acc, v := range c.dirtyStorageMap {
+		for kk, vv := range v {
+			fmt.Println("storage:", acc.String(), kk.String(), hex.EncodeToString(vv.Value), vv.Dirty)
+		}
+	}
+	for acc, _ := range c.dirtycodeMap {
+		fmt.Println("code:", acc.String())
+	}
 	//for acc, v := range c.accMap {
 	//	fmt.Println("acc", acc.String(), v.isDirty)
 	//}

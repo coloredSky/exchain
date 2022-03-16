@@ -3,9 +3,11 @@ package baseapp
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/okex/exchain/libs/cosmos-sdk/store/prefix"
 	"github.com/okex/exchain/libs/cosmos-sdk/store/types"
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
 	sdkerrors "github.com/okex/exchain/libs/cosmos-sdk/types/errors"
@@ -206,11 +208,10 @@ func (app *BaseApp) fixFeeCollector(txs [][]byte, ms sdk.CacheMultiStore) {
 }
 
 func (app *BaseApp) runTxs(txs [][]byte, groupList map[int][]int, nextTxInGroup map[int]int) []*abci.ResponseDeliverTx {
-	//ts := time.Now()
-	//fmt.Println("detail", app.deliverState.ctx.BlockHeight(), "len(group)", len(groupList))
-	//for index := 0; index < len(groupList); index++ {
-	//	fmt.Println("groupIndex", index, "groupSize", len(groupList[index]), "list", groupList[index])
-	//}
+	fmt.Println("detail", app.deliverState.ctx.BlockHeight(), "len(group)", len(groupList))
+	for index := 0; index < len(groupList); index++ {
+		fmt.Println("groupIndex", index, "groupSize", len(groupList[index]), "list", groupList[index])
+	}
 	maxGas := app.getMaximumBlockGas()
 	currentGas := uint64(0)
 	overFlow := func(sumGas uint64, currGas int64, maxGas uint64) bool {
@@ -262,7 +263,7 @@ func (app *BaseApp) runTxs(txs [][]byte, groupList map[int][]int, nextTxInGroup 
 
 			//res.cache.Print()
 
-			if res.Conflict(pm.cc) || overFlow(currentGas, res.resp.GasUsed, maxGas) {
+			if res.Conflict(pm.blockCache) || overFlow(currentGas, res.resp.GasUsed, maxGas) {
 				if pm.workgroup.isRunning(txIndex) {
 					runningTaskID := pm.workgroup.runningStats(txIndex)
 					pm.markFailed(runningTaskID)
@@ -341,8 +342,8 @@ func (app *BaseApp) runTxs(txs [][]byte, groupList map[int][]int, nextTxInGroup 
 	if len(txs) > 0 {
 		//waiting for call back
 		<-signal
-		app.fixFeeCollector(txs, pm.cms)
 		fmt.Println("ReadTs", pm.readCnt, pm.writeCnt)
+		app.fixFeeCollector(txs, pm.cms)
 		receiptsLogs := app.endParallelTxs()
 		for index, v := range receiptsLogs {
 			if len(v) != 0 { // only update evm tx result
@@ -351,8 +352,47 @@ func (app *BaseApp) runTxs(txs [][]byte, groupList map[int][]int, nextTxInGroup 
 		}
 
 	}
-	pm.cms.Write()
 
+	accStore := pm.cms.GetKVStore(pm.cms.GetStoreKey()["acc"])
+	tt := pm.blockCache.GetDirtyAcc()
+	delete(tt, whiteAddr)
+	for add, v := range tt {
+		sb := append([]byte{0x01}, add.Bytes()...)
+
+		//fmt.Println("new set----", hex.EncodeToString(sb), v.IsDirty, v.ISDelete, hex.EncodeToString(v.Bz))
+		if v.ISDelete {
+			accStore.Delete(sb)
+		} else {
+			accStore.Set(sb, v.Bz)
+		}
+	}
+
+	evmStore := pm.cms.GetKVStore(pm.cms.GetStoreKey()["evm"])
+
+	storaget := pm.blockCache.GetDirtyStorage()
+	for addr, v := range storaget {
+		ss := prefix.NewStore(evmStore, append([]byte{0x05}, addr.Bytes()...))
+
+		for kk, vv := range v {
+			//fmt.Println("new set evm", kk.String(), hex.EncodeToString(vv.Value))
+			if vv.Delete {
+				ss.Delete(kk.Bytes())
+			} else {
+				ss.Set(kk.Bytes(), vv.Value)
+			}
+		}
+	}
+
+	dirtyCode := pm.blockCache.GetDirtyCode()
+	for codeHash, v := range dirtyCode {
+		ss := prefix.NewStore(evmStore, append([]byte{0x04}))
+		if v.IsDirty {
+			ss.Set(codeHash.Bytes(), v.Code)
+		}
+	}
+
+	pm.cms.Write()
+	pm.blockCache.Write(true)
 	return deliverTxs
 }
 
@@ -426,7 +466,7 @@ func (e executeResult) GetResponse() abci.ResponseDeliverTx {
 	return e.resp
 }
 
-func (e executeResult) Conflict(cc *conflictCheck) bool {
+func (e executeResult) Conflict(blockCache *sdk.Cache) bool {
 	//ts := time.Now()
 	//defer func() {
 	//	sdk.AddConflictTime(time.Now().Sub(ts))
@@ -435,11 +475,15 @@ func (e executeResult) Conflict(cc *conflictCheck) bool {
 		return true //TODO fix later
 	}
 
-	for k, v := range e.readList {
-		if cc.isConflict(k, v) {
-			return true
-		}
-	}
+	fmt.Println("checkConflict", e.counter)
+	return blockCache.IsConflict(e.cache)
+
+	//for k, v := range e.readList {
+	//	if cc.isConflict(k, v) {
+	//		fmt.Println("conflict", hex.EncodeToString([]byte(k)))
+	//		return true
+	//	}
+	//}
 
 	return false
 }
@@ -462,6 +506,9 @@ func loadPreData(ms sdk.CacheMultiStore) (map[string][]byte, map[string][]byte) 
 
 func newExecuteResult(r abci.ResponseDeliverTx, ms sdk.CacheMultiStore, counter uint32, evmCounter uint32, cache *sdk.Cache) *executeResult {
 	rSet, wSet := loadPreData(ms)
+
+	cc := cache.GetParent()
+	cc.DeleteCacheAccount(whiteAddr)
 	return &executeResult{
 		resp:       r,
 		ms:         ms,
@@ -469,7 +516,7 @@ func newExecuteResult(r abci.ResponseDeliverTx, ms sdk.CacheMultiStore, counter 
 		evmCounter: evmCounter,
 		readList:   rSet,
 		writeList:  wSet,
-		cache:      cache,
+		cache:      cc,
 	}
 }
 
@@ -604,7 +651,8 @@ func (c *conflictCheck) clear() {
 }
 
 var (
-	whiteAcc = string(hexutil.MustDecode("0x01f1829676db577682e944fc3493d451b67ff3e29f")) //fee
+	whiteAcc  = string(hexutil.MustDecode("0x01f1829676db577682e944fc3493d451b67ff3e29f")) //fee
+	whiteAddr = ethcommon.HexToAddress("0xf1829676db577682e944fc3493d451b67ff3e29f")
 )
 
 func (c *conflictCheck) isConflict(key string, vaule []byte) bool {
@@ -736,10 +784,6 @@ func (f *parallelTxManager) getRunBase(now int) int {
 }
 
 func (f *parallelTxManager) SetCurrentIndex(d int, res *executeResult) {
-	//ts := time.Now()
-	//defer func() {
-	//	sdk.AddMergeTime(time.Now().Sub(ts))
-	//}()
 
 	if res.ms == nil {
 		return
@@ -750,15 +794,16 @@ func (f *parallelTxManager) SetCurrentIndex(d int, res *executeResult) {
 		for k, v := range res.writeList {
 			f.cc.update(k, v)
 		}
+		//res.cache.Print(true)
+		res.cache.Write(true)
+		//f.blockCache.Print(false)
 		chanStop <- struct{}{}
 	}()
 
-	fmt.Println("SetCurrent", d, f.getRunBase(d), len(f.txStatus))
 	f.mu.Lock()
 	r, w := res.ms.Display()
 	for _, v := range r {
 		f.readCnt += v
-
 	}
 
 	for _, v := range w {
@@ -766,6 +811,16 @@ func (f *parallelTxManager) SetCurrentIndex(d int, res *executeResult) {
 	}
 	res.ms.IteratorCache(func(key, value []byte, isDirty bool, isdelete bool, storeKey sdk.StoreKey) bool {
 		if isDirty {
+			if storeKey.Name() == "acc" {
+				fmt.Println("---setAcc---", hex.EncodeToString(key), isDirty, isdelete, hex.EncodeToString(value))
+			}
+
+			if storeKey.Name() == "evm" {
+				fmt.Println("---setEVM---", hex.EncodeToString(key), isDirty, isdelete)
+			}
+
+			fmt.Println("SetCurrent--Ms", hex.EncodeToString(key), isDirty, isdelete)
+
 			if isdelete {
 				f.cms.GetKVStore(storeKey).Delete(key)
 			} else if value != nil {
@@ -777,6 +832,7 @@ func (f *parallelTxManager) SetCurrentIndex(d int, res *executeResult) {
 	f.currIndex = d
 	f.mu.Unlock()
 	<-chanStop
+	fmt.Println("SetCurrent", d, f.getRunBase(d), len(f.txStatus))
 }
 
 var (

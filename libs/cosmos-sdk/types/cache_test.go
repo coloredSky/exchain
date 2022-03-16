@@ -77,54 +77,54 @@ func TestCache(t *testing.T) {
 	parent := newCache(nil)
 	st := newCache(parent)
 
-	key1Value, _, _ := st.GetAccount(keyFmt(1))
+	key1Value, _, _, _ := st.GetAccount(keyFmt(1))
 	require.Empty(t, key1Value, "should 'key1' to be empty")
 
 	// put something in mem and in cache
-	parent.UpdateAccount(keyFmt(1).Bytes(), accountValueFmt(1), 0, true)
-	st.UpdateAccount(keyFmt(1).Bytes(), accountValueFmt(1), 0, true)
-	key1Value, _, _ = st.GetAccount(keyFmt(1))
+	parent.UpdateAccount(keyFmt(1).Bytes(), accountValueFmt(1), nil, true)
+	st.UpdateAccount(keyFmt(1).Bytes(), accountValueFmt(1), nil, true)
+	key1Value, _, _, _ = st.GetAccount(keyFmt(1))
 	require.Equal(t, key1Value.GetAccountNumber(), uint64(1))
 
 	// update it in cache, shoudn't change mem
-	st.UpdateAccount(keyFmt(1).Bytes(), accountValueFmt(2), 0, true)
-	key1ValueInParent, _, _ := parent.GetAccount(keyFmt(1))
-	key1ValueInSt, _, _ := st.GetAccount(keyFmt(1))
+	st.UpdateAccount(keyFmt(1).Bytes(), accountValueFmt(2), nil, true)
+	key1ValueInParent, _, _, _ := parent.GetAccount(keyFmt(1))
+	key1ValueInSt, _, _, _ := st.GetAccount(keyFmt(1))
 	require.Equal(t, key1ValueInParent.GetAccountNumber(), uint64(1))
 	require.Equal(t, key1ValueInSt.GetAccountNumber(), uint64(2))
 
 	// write it . should change mem
 	st.Write(true)
-	key1ValueInParent, _, _ = parent.GetAccount(keyFmt(1))
-	key1ValueInSt, _, _ = st.GetAccount(keyFmt(1))
+	key1ValueInParent, _, _, _ = parent.GetAccount(keyFmt(1))
+	key1ValueInSt, _, _, _ = st.GetAccount(keyFmt(1))
 	require.Equal(t, key1ValueInParent.GetAccountNumber(), uint64(2))
 	require.Equal(t, key1ValueInSt.GetAccountNumber(), uint64(2))
 
 	// more writes and checks
 	st.Write(true)
 	st.Write(true)
-	key1ValueInParent, _, _ = parent.GetAccount(keyFmt(1))
-	key1ValueInSt, _, _ = st.GetAccount(keyFmt(1))
+	key1ValueInParent, _, _, _ = parent.GetAccount(keyFmt(1))
+	key1ValueInSt, _, _, _ = st.GetAccount(keyFmt(1))
 	require.Equal(t, key1ValueInParent.GetAccountNumber(), uint64(2))
 	require.Equal(t, key1ValueInSt.GetAccountNumber(), uint64(2))
 
 	// make a new one, check it
 	st = newCache(parent)
-	key1ValueInSt, _, _ = st.GetAccount(keyFmt(1))
+	key1ValueInSt, _, _, _ = st.GetAccount(keyFmt(1))
 	require.Equal(t, key1ValueInSt.GetAccountNumber(), uint64(2))
 
 	// make a new one and delete - should not be removed from mem
 	st = newCache(parent)
-	st.UpdateAccount(keyFmt(1).Bytes(), nil, 0, true)
-	key1ValueInSt, _, _ = st.GetAccount(keyFmt(1))
+	st.UpdateAccount(keyFmt(1).Bytes(), nil, nil, true)
+	key1ValueInSt, _, _, _ = st.GetAccount(keyFmt(1))
 	require.Empty(t, key1ValueInSt)
-	key1ValueInParent, _, _ = parent.GetAccount(keyFmt(1))
+	key1ValueInParent, _, _, _ = parent.GetAccount(keyFmt(1))
 	require.Equal(t, key1ValueInParent.GetAccountNumber(), uint64(2))
 
 	// Write. should now be removed from both
 	st.Write(true)
-	key1ValueInParent, _, _ = parent.GetAccount(keyFmt(1))
-	key1ValueInSt, _, _ = st.GetAccount(keyFmt(1))
+	key1ValueInParent, _, _, _ = parent.GetAccount(keyFmt(1))
+	key1ValueInSt, _, _, _ = st.GetAccount(keyFmt(1))
 	require.Empty(t, key1ValueInParent)
 	require.Empty(t, key1ValueInSt)
 }
@@ -134,36 +134,36 @@ func TestCacheNested(t *testing.T) {
 	st := newCache(parent)
 
 	// set. check its there on st and not on mem.
-	st.UpdateAccount(keyFmt(1).Bytes(), accountValueFmt(1), 0, true)
-	key1ValueInParent, _, _ := parent.GetAccount(keyFmt(1))
-	key1ValueInSt, _, _ := st.GetAccount(keyFmt(1))
+	st.UpdateAccount(keyFmt(1).Bytes(), accountValueFmt(1), nil, true)
+	key1ValueInParent, _, _, _ := parent.GetAccount(keyFmt(1))
+	key1ValueInSt, _, _, _ := st.GetAccount(keyFmt(1))
 	require.Empty(t, key1ValueInParent)
 	require.Equal(t, key1ValueInSt.GetAccountNumber(), uint64(1))
 
 	// make a new from st and check
 	st2 := newCache(st)
-	key1ValueInSt, _, _ = st2.GetAccount(keyFmt(1))
+	key1ValueInSt, _, _, _ = st2.GetAccount(keyFmt(1))
 	require.Equal(t, key1ValueInSt.GetAccountNumber(), uint64(1))
 
 	// update the value on st2, check it only effects st2
-	st2.UpdateAccount(keyFmt(1).Bytes(), accountValueFmt(3), 0, true)
-	key1ValueInParent, _, _ = parent.GetAccount(keyFmt(1))
-	key1ValueInSt, _, _ = st.GetAccount(keyFmt(1))
-	key1ValueInSt2, _, _ := st2.GetAccount(keyFmt(1))
+	st2.UpdateAccount(keyFmt(1).Bytes(), accountValueFmt(3), nil, true)
+	key1ValueInParent, _, _, _ = parent.GetAccount(keyFmt(1))
+	key1ValueInSt, _, _, _ = st.GetAccount(keyFmt(1))
+	key1ValueInSt2, _, _, _ := st2.GetAccount(keyFmt(1))
 	require.Empty(t, key1ValueInParent)
 	require.Equal(t, key1ValueInSt.GetAccountNumber(), uint64(1))
 	require.Equal(t, key1ValueInSt2.GetAccountNumber(), uint64(3))
 
 	// st2 write to its parent, st. doesnt effect parent
 	st2.Write(true)
-	key1ValueInParent, _, _ = parent.GetAccount(keyFmt(1))
-	key1ValueInSt, _, _ = st.GetAccount(keyFmt(1))
+	key1ValueInParent, _, _, _ = parent.GetAccount(keyFmt(1))
+	key1ValueInSt, _, _, _ = st.GetAccount(keyFmt(1))
 	require.Empty(t, key1ValueInParent)
 	require.Equal(t, key1ValueInSt.GetAccountNumber(), uint64(3))
 
 	// updates parent
 	st.Write(true)
-	key1ValueInParent, _, _ = parent.GetAccount(keyFmt(1))
+	key1ValueInParent, _, _, _ = parent.GetAccount(keyFmt(1))
 	require.Equal(t, key1ValueInParent.GetAccountNumber(), uint64(3))
 }
 
@@ -180,7 +180,7 @@ func BenchmarkCacheKVStoreGetKeyFound(b *testing.B) {
 	st := newCache(nil)
 	for i := 0; i < b.N; i++ {
 		arr := []byte{byte((i & 0xFF0000) >> 16), byte((i & 0xFF00) >> 8), byte(i & 0xFF)}
-		st.UpdateAccount(arr, nil, 0, true)
+		st.UpdateAccount(arr, nil, nil, true)
 	}
 	b.ResetTimer()
 	// assumes b.N < 2**24

@@ -302,8 +302,11 @@ func (so *stateObject) commitState() {
 
 		// delete empty values from the store
 		if (state.Value == ethcmn.Hash{}) {
-			store.Delete(state.Key.Bytes())
-			so.stateDB.ctx.Cache().UpdateStorage(so.address, state.Key, state.Value.Bytes(), true)
+			if !so.stateDB.ctx.Cache().UseCache() {
+				store.Delete(state.Key.Bytes())
+			}
+
+			so.stateDB.ctx.Cache().UpdateStorage(so.address, state.Key, state.Value.Bytes(), true, true)
 			if !so.stateDB.ctx.IsCheckTx() {
 				if so.stateDB.Watcher.Enabled() {
 					so.stateDB.Watcher.SaveState(so.Address(), state.Key.Bytes(), ethcmn.Hash{}.Bytes())
@@ -329,8 +332,10 @@ func (so *stateObject) commitState() {
 		}
 
 		so.originStorage[idx].Value = state.Value
-		store.Set(state.Key.Bytes(), state.Value.Bytes())
-		so.stateDB.ctx.Cache().UpdateStorage(so.address, state.Key, state.Value.Bytes(), true)
+		if !so.stateDB.ctx.Cache().UseCache() {
+			store.Set(state.Key.Bytes(), state.Value.Bytes())
+		}
+		so.stateDB.ctx.Cache().UpdateStorage(so.address, state.Key, state.Value.Bytes(), true, false)
 		if !so.stateDB.ctx.IsCheckTx() {
 			if so.stateDB.Watcher.Enabled() {
 				so.stateDB.Watcher.SaveState(so.Address(), state.Key.Bytes(), state.Value.Bytes())
@@ -347,7 +352,9 @@ func (so *stateObject) commitState() {
 func (so *stateObject) commitCode() {
 	ctx := so.stateDB.ctx
 	store := so.stateDB.dbAdapter.NewStore(ctx.KVStore(so.stateDB.storeKey), KeyPrefixCode)
-	store.Set(so.CodeHash(), so.code)
+	if !ctx.Cache().UseCache() {
+		store.Set(so.CodeHash(), so.code)
+	}
 	ctx.Cache().UpdateCode(so.CodeHash(), so.code, true)
 }
 
@@ -451,7 +458,7 @@ func (so *stateObject) GetCommittedState(_ ethstate.Database, key ethcmn.Hash) e
 	if !ok {
 		store := so.stateDB.dbAdapter.NewStore(ctx.KVStore(so.stateDB.storeKey), AddressStoragePrefix(so.Address()))
 		rawValue = store.Get(prefixKey.Bytes())
-		ctx.Cache().UpdateStorage(so.address, prefixKey, rawValue, false)
+		ctx.Cache().UpdateStorage(so.address, prefixKey, rawValue, false, false)
 	}
 
 	if len(rawValue) > 0 {

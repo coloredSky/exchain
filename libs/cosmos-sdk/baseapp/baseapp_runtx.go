@@ -59,8 +59,8 @@ func (app *BaseApp) runtxWithInfo(info *runTxInfo, mode runTxMode, txBytes []byt
 	}
 
 	if mode == runTxModeDeliverInAsync {
-		txCache := sdk.NewCache(app.parallelTxManage.blockCache, true)
-		info.ctx = info.ctx.WithCache(sdk.NewCache(txCache, true))
+		txCache := sdk.NewCache(app.parallelTxManage.blockCache, useCache(runTxModeDeliverInAsync))
+		info.ctx = info.ctx.WithCache(sdk.NewCache(txCache, useCache(runTxModeDeliverInAsync)))
 	} else {
 		info.ctx = info.ctx.WithCache(sdk.NewCache(app.blockCache, useCache(mode)))
 	}
@@ -297,5 +297,5 @@ func (app *BaseApp) newBlockCache() {
 
 func (app *BaseApp) commitBlockCache() {
 	app.blockCache.Write(true)
-	app.chainCache.TryDelete(app.logger, app.deliverState.ctx.BlockHeight())
+	//app.chainCache.TryDelete(app.logger, app.deliverState.ctx.BlockHeight())
 }
