@@ -261,8 +261,8 @@ func (app *BaseApp) runTxs(txs [][]byte, groupList map[int][]int, nextTxInGroup 
 			s := pm.txStatus[txBytes]
 			res := txReps[txIndex]
 
-			//res.cache.Print()
-
+			res.cache.Print(false)
+			fmt.Println("checkConflict", res.counter, pm.getRunBase(int(res.counter)))
 			if res.Conflict(pm.blockCache) || overFlow(currentGas, res.resp.GasUsed, maxGas) {
 				if pm.workgroup.isRunning(txIndex) {
 					runningTaskID := pm.workgroup.runningStats(txIndex)
@@ -392,7 +392,7 @@ func (app *BaseApp) runTxs(txs [][]byte, groupList map[int][]int, nextTxInGroup 
 	}
 
 	pm.cms.Write()
-	pm.blockCache.Write(true)
+	pm.blockCache.Write(true, false)
 	return deliverTxs
 }
 
@@ -475,7 +475,6 @@ func (e executeResult) Conflict(blockCache *sdk.Cache) bool {
 		return true //TODO fix later
 	}
 
-	fmt.Println("checkConflict", e.counter)
 	return blockCache.IsConflict(e.cache)
 
 	//for k, v := range e.readList {
@@ -795,7 +794,9 @@ func (f *parallelTxManager) SetCurrentIndex(d int, res *executeResult) {
 			f.cc.update(k, v)
 		}
 		//res.cache.Print(true)
-		res.cache.Write(true)
+		//fmt.Println("beginWriteToBlock")
+		res.cache.Write(true, true)
+		//fmt.Println("endWriteToBlock")
 		//f.blockCache.Print(false)
 		chanStop <- struct{}{}
 	}()

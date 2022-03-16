@@ -148,7 +148,7 @@ func (c *Cache) UpdateAccount(addr AccAddress, acc account, bz []byte, isDirty b
 
 	c.mu.Lock()
 	if !isDirty {
-		c.readaccMap[ethAddr] = tt
+		c.setReadAccount(ethAddr, acc, bz, tt.Gas)
 	} else {
 		c.dirtyaccMap[ethAddr] = tt
 	}
@@ -156,7 +156,9 @@ func (c *Cache) UpdateAccount(addr AccAddress, acc account, bz []byte, isDirty b
 }
 
 func (c *Cache) UpdateStorage(addr ethcmn.Address, key ethcmn.Hash, value []byte, isDirty bool, isDelete bool) {
+	//fmt.Println("uuuuuu", addr.String(), key.String(), isDirty, isDelete)
 	if c.skip() {
+		fmt.Println("skip----")
 		return
 	}
 
@@ -172,10 +174,7 @@ func (c *Cache) UpdateStorage(addr ethcmn.Address, key ethcmn.Hash, value []byte
 			Delete: isDelete,
 		}
 	} else {
-		if _, ok := c.readStorageMap[addr]; !ok {
-			c.readStorageMap[addr] = make(map[ethcmn.Hash][]byte, 0)
-		}
-		c.readStorageMap[addr][key] = value
+		c.setReadStorage(addr, key, value)
 	}
 	c.mu.Unlock()
 }
@@ -192,19 +191,10 @@ func (c *Cache) UpdateCode(key []byte, value []byte, isdirty bool) {
 			IsDirty: isdirty,
 		}
 	} else {
-		c.readcodeMap[hash] = value
+		c.SetReadCode(hash, value)
 	}
 
 	c.mu.Unlock()
-}
-
-func (c *Cache) setReadAccount(addr ethcmn.Address, acc account, bz []byte, gas uint64) {
-	c.readaccMap[addr] = &accountWithCache{
-		Acc:     acc,
-		Gas:     gas,
-		Bz:      bz,
-		IsDirty: false,
-	}
 }
 
 func (c *Cache) GetAccount(addr ethcmn.Address) (account, uint64, []byte, bool) {
@@ -225,12 +215,18 @@ func (c *Cache) GetAccount(addr ethcmn.Address) (account, uint64, []byte, bool) 
 
 	if c.parent != nil {
 		acc, gas, bz, ok := c.parent.GetAccount(addr)
-		if ok {
-			c.setReadAccount(addr, acc, bz, gas)
-		}
 		return acc, gas, bz, ok
 	}
 	return nil, 0, nil, false
+}
+
+func (c *Cache) setReadAccount(addr ethcmn.Address, acc account, bz []byte, gas uint64) {
+	c.readaccMap[addr] = &accountWithCache{
+		Acc:     acc,
+		Gas:     gas,
+		Bz:      bz,
+		IsDirty: false,
+	}
 }
 
 func (c *Cache) setReadStorage(addr ethcmn.Address, key ethcmn.Hash, value []byte) {
@@ -238,6 +234,10 @@ func (c *Cache) setReadStorage(addr ethcmn.Address, key ethcmn.Hash, value []byt
 		c.readStorageMap[addr] = make(map[ethcmn.Hash][]byte)
 	}
 	c.readStorageMap[addr][key] = value
+}
+
+func (c *Cache) SetReadCode(hash ethcmn.Hash, value []byte) {
+	c.readcodeMap[hash] = value
 }
 func (c *Cache) GetStorage(addr ethcmn.Address, key ethcmn.Hash) ([]byte, bool) {
 	if c.skip() {
@@ -263,17 +263,11 @@ func (c *Cache) GetStorage(addr ethcmn.Address, key ethcmn.Hash) ([]byte, bool) 
 
 	if c.parent != nil {
 		value, ok := c.parent.GetStorage(addr, key)
-		if ok {
-			c.setReadStorage(addr, key, value)
-		}
 		return value, ok
 	}
 	return nil, false
 }
 
-func (c *Cache) SetReadCode(hash ethcmn.Hash, value []byte) {
-	c.readcodeMap[hash] = value
-}
 func (c *Cache) GetCode(key []byte) ([]byte, bool) {
 	if c.skip() {
 		return nil, false
@@ -291,9 +285,6 @@ func (c *Cache) GetCode(key []byte) ([]byte, bool) {
 	}
 	if c.parent != nil {
 		code, ok := c.parent.GetCode(hash.Bytes())
-		if ok {
-			c.SetReadCode(hash, code)
-		}
 		return code, ok
 	}
 	return nil, false
@@ -310,7 +301,7 @@ func (c *Cache) GetDirtyCode() map[ethcmn.Hash]*codeWithCache {
 func (c *Cache) GetDirtyStorage() map[ethcmn.Address]map[ethcmn.Hash]*storageWithCache {
 	return c.dirtyStorageMap
 }
-func (c *Cache) Write(updateDirty bool) {
+func (c *Cache) Write(updateDirty bool, printLog bool) {
 	if c.skip() {
 		return
 	}
@@ -321,12 +312,12 @@ func (c *Cache) Write(updateDirty bool) {
 		return
 	}
 
-	c.writeStorage(updateDirty)
+	c.writeStorage(updateDirty, printLog)
 	c.writeAcc(updateDirty)
 	c.writeCode(updateDirty)
 }
 
-func (c *Cache) writeStorage(updateDirty bool) {
+func (c *Cache) writeStorage(updateDirty bool, printLog bool) {
 	for addr, storages := range c.dirtyStorageMap {
 		if _, ok := c.parent.dirtyStorageMap[addr]; !ok {
 			c.parent.dirtyStorageMap[addr] = make(map[ethcmn.Hash]*storageWithCache, 0)
@@ -334,13 +325,32 @@ func (c *Cache) writeStorage(updateDirty bool) {
 
 		for key, v := range storages {
 			if updateDirty {
-				//if addr.String() == "0xadf4916d11F352a2748e19F3056428639313F6E1" {
-				//fmt.Println("writeStorage", addr.String(), key.String(), hex.EncodeToString(v.value))
-				//}
+				if printLog {
+					if addr.String() == "0xd90838EC67025E2b92d814AAe244Ac4ed889994D" {
+						fmt.Println("addr", addr.String(), key.String(), hex.EncodeToString(v.Value))
+					}
+
+				}
 				c.parent.dirtyStorageMap[addr][key] = v
 			}
 		}
 	}
+
+	for addr, storages := range c.readStorageMap {
+		if _, ok := c.parent.readStorageMap[addr]; !ok {
+			c.parent.readStorageMap[addr] = make(map[ethcmn.Hash][]byte, 0)
+		}
+
+		for key, v := range storages {
+			if updateDirty {
+				//if addr.String() == "0xadf4916d11F352a2748e19F3056428639313F6E1" {
+				//fmt.Println("writeStorage", addr.String(), key.String(), hex.EncodeToString(v.value))
+				//}
+				c.parent.readStorageMap[addr][key] = v
+			}
+		}
+	}
+
 	c.dirtyStorageMap = make(map[ethcmn.Address]map[ethcmn.Hash]*storageWithCache)
 	c.readStorageMap = make(map[ethcmn.Address]map[ethcmn.Hash][]byte)
 }
@@ -349,6 +359,12 @@ func (c *Cache) writeAcc(updateDirty bool) {
 	for addr, v := range c.dirtyaccMap {
 		if updateDirty {
 			c.parent.dirtyaccMap[addr] = v
+		}
+	}
+
+	for addr, v := range c.readaccMap {
+		if updateDirty {
+			c.parent.readaccMap[addr] = v
 		}
 	}
 	c.dirtyaccMap = make(map[ethcmn.Address]*accountWithCache)
@@ -361,13 +377,21 @@ func (c *Cache) writeCode(updateDirty bool) {
 			c.parent.dirtycodeMap[hash] = v
 		}
 	}
+	for hash, v := range c.readcodeMap {
+		if updateDirty {
+			c.parent.readcodeMap[hash] = v
+		}
+	}
 	c.dirtycodeMap = make(map[ethcmn.Hash]*codeWithCache)
 	c.readcodeMap = make(map[ethcmn.Hash][]byte)
 }
 
 func (c *Cache) IsConflict(newCache *Cache) bool {
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	//fmt.Println("readStorageMap", len(newCache.readaccMap), len(newCache.readStorageMap), len(newCache.readcodeMap))
+
 	for acc, v := range newCache.readaccMap {
 		if data, ok := c.dirtyaccMap[acc]; ok && data.IsDirty {
 			if !bytes.Equal(v.Bz, data.Bz) {
@@ -385,7 +409,7 @@ func (c *Cache) IsConflict(newCache *Cache) bool {
 		for kk, vv := range ss {
 			if pp, ok1 := preSS[kk]; ok1 && pp.Dirty {
 				if !bytes.Equal(pp.Value, vv) {
-					fmt.Println("conflict-storage", acc.String(), kk.String(), hex.EncodeToString(pp.Value), hex.EncodeToString(vv))
+					fmt.Println("conflict-storage", acc.String(), kk.String(), "now", hex.EncodeToString(pp.Value), "read", hex.EncodeToString(vv))
 					return true
 				}
 			}
@@ -466,7 +490,8 @@ func (c *Cache) GetParent() *Cache {
 func (c *Cache) Print(printLog bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	fmt.Println("size::::", len(c.dirtyaccMap), len(c.dirtyStorageMap), len(c.dirtycodeMap))
+	//fmt.Println("size::::", len(c.dirtyaccMap), len(c.dirtyStorageMap), len(c.dirtycodeMap))
+	//fmt.Println("size::::", len(c.readaccMap), len(c.readStorageMap), len(c.readcodeMap))
 
 	if !printLog {
 		return

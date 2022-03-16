@@ -28,7 +28,7 @@ type runTxInfo struct {
 
 func (r *runTxInfo) writeCache() {
 	r.msCache.Write()
-	r.ctx.Cache().Write(true)
+	r.ctx.Cache().Write(true, false)
 }
 
 func (app *BaseApp) runTx(mode runTxMode,
@@ -92,7 +92,7 @@ func (app *BaseApp) runtxWithInfo(info *runTxInfo, mode runTxMode, txBytes []byt
 	defer func() {
 		app.pin(Refund, true, mode)
 		defer app.pin(Refund, false, mode)
-		info.ctx.Cache().Write(false)
+		info.ctx.Cache().Write(false, false)
 		handler.handleDeferRefund(info)
 	}()
 
@@ -111,7 +111,7 @@ func (app *BaseApp) runtxWithInfo(info *runTxInfo, mode runTxMode, txBytes []byt
 	app.pin(RunAnte, false, mode)
 
 	app.pin(RunMsg, true, mode)
-	info.ctx.Cache().Write(false)
+	info.ctx.Cache().Write(false, false)
 	err = handler.handleRunMsg(info)
 	app.pin(RunMsg, false, mode)
 	return err
@@ -184,7 +184,7 @@ func (app *BaseApp) runAnte(info *runTxInfo, mode runTxMode) error {
 		info.msCacheAnte.Write()
 		app.pin(CacheStoreWrite, false, mode)
 	}
-	info.ctx.Cache().Write(true)
+	info.ctx.Cache().Write(true, false)
 
 	return nil
 }
@@ -296,6 +296,6 @@ func (app *BaseApp) newBlockCache() {
 }
 
 func (app *BaseApp) commitBlockCache() {
-	app.blockCache.Write(true)
+	app.blockCache.Write(true, false)
 	//app.chainCache.TryDelete(app.logger, app.deliverState.ctx.BlockHeight())
 }
