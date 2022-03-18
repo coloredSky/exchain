@@ -289,8 +289,8 @@ func (blockExec *BlockExecutor) runAbci(block *types.Block, deltaInfo *DeltaInfo
 				proxyApp: blockExec.proxyApp,
 			}
 			if block.Height == 5810700 {
-				block.Txs = block.Txs[:14]
-				//block.Txs = types.Txs{block.Txs[13]}
+				//block.Txs = block.Txs[:2]
+				//block.Txs = types.Txs{block.Txs[7], block.Txs[11]}
 			}
 
 			if blockExec.isAsync {

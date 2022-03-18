@@ -475,7 +475,7 @@ func (e executeResult) Conflict(blockCache *sdk.Cache) bool {
 		return true //TODO fix later
 	}
 
-	return blockCache.IsConflict(e.cache)
+	return blockCache.IsConflict(e.cache, whiteAddr)
 
 	//for k, v := range e.readList {
 	//	if cc.isConflict(k, v) {
@@ -505,9 +505,7 @@ func loadPreData(ms sdk.CacheMultiStore) (map[string][]byte, map[string][]byte) 
 
 func newExecuteResult(r abci.ResponseDeliverTx, ms sdk.CacheMultiStore, counter uint32, evmCounter uint32, cache *sdk.Cache) *executeResult {
 	rSet, wSet := loadPreData(ms)
-
 	cc := cache.GetParent()
-	cc.DeleteCacheAccount(whiteAddr)
 	return &executeResult{
 		resp:       r,
 		ms:         ms,
@@ -755,25 +753,29 @@ func (f *parallelTxManager) isReRun(tx string) bool {
 	return data.reRun
 }
 
-func (f *parallelTxManager) getTxResult(tx []byte) sdk.CacheMultiStore {
+func (f *parallelTxManager) getTxResult(tx []byte) (sdk.CacheMultiStore, *sdk.Cache) {
 	index := f.txStatus[string(tx)].indexInBlock
 	preIndexInGroup, ok := f.preTxInGroup[int(index)]
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	ms := f.cms.CacheMultiStore()
+	cc := f.blockCache
 	base := f.currIndex
 	if ok && preIndexInGroup > f.currIndex {
 		if f.txStatus[f.indexMapBytes[preIndexInGroup]].anteErr == nil {
 			ms = f.txReps[preIndexInGroup].ms.CacheMultiStore()
 			base = preIndexInGroup
+			cc = f.txReps[preIndexInGroup].cache
+			fmt.Println("preIndexInGroup", preIndexInGroup)
 		} else {
 			ms = f.cms.CacheMultiStore()
 			base = f.currIndex
 		}
 
 	}
+	fmt.Println("runBase", index, base)
 	f.runBase[int(index)] = base
-	return ms
+	return ms, cc
 }
 
 func (f *parallelTxManager) getRunBase(now int) int {
@@ -795,7 +797,7 @@ func (f *parallelTxManager) SetCurrentIndex(d int, res *executeResult) {
 		}
 		//res.cache.Print(true)
 		//fmt.Println("beginWriteToBlock")
-		res.cache.Write(true, true)
+		res.cache.WriteToNewCache(f.blockCache)
 		//fmt.Println("endWriteToBlock")
 		//f.blockCache.Print(false)
 		chanStop <- struct{}{}
@@ -813,7 +815,7 @@ func (f *parallelTxManager) SetCurrentIndex(d int, res *executeResult) {
 	res.ms.IteratorCache(func(key, value []byte, isDirty bool, isdelete bool, storeKey sdk.StoreKey) bool {
 		if isDirty {
 			if storeKey.Name() == "acc" {
-				fmt.Println("---setAcc---", hex.EncodeToString(key), isDirty, isdelete, hex.EncodeToString(value))
+				fmt.Println("---setAcc---", hex.EncodeToString(key), string(key), isDirty, isdelete, hex.EncodeToString(value))
 			}
 
 			if storeKey.Name() == "evm" {

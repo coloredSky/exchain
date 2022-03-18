@@ -58,13 +58,6 @@ func (app *BaseApp) runtxWithInfo(info *runTxInfo, mode runTxMode, txBytes []byt
 		return err
 	}
 
-	if mode == runTxModeDeliverInAsync {
-		txCache := sdk.NewCache(app.parallelTxManage.blockCache, useCache(runTxModeDeliverInAsync))
-		info.ctx = info.ctx.WithCache(sdk.NewCache(txCache, useCache(runTxModeDeliverInAsync)))
-	} else {
-		info.ctx = info.ctx.WithCache(sdk.NewCache(app.blockCache, useCache(mode)))
-	}
-
 	for _, addr := range from {
 		// cache from if exist
 		if addr != "" {
@@ -135,10 +128,16 @@ func (app *BaseApp) runAnte(info *runTxInfo, mode runTxMode) error {
 
 	if mode == runTxModeDeliverInAsync {
 		info.msCacheAnte = nil
-		msCacheAnte := app.parallelTxManage.getTxResult(info.txBytes)
+		msCacheAnte, currentCache := app.parallelTxManage.getTxResult(info.txBytes)
 		info.msCacheAnte = msCacheAnte
 		anteCtx = anteCtx.WithMultiStore(info.msCacheAnte)
+
+		txCache := sdk.NewCache(currentCache, true)
+		info.ctx = info.ctx.WithCache(sdk.NewCache(txCache, true))
+
+		anteCtx = anteCtx.WithCache(info.ctx.Cache())
 	}
+
 	anteCtx = anteCtx.WithEventManager(sdk.NewEventManager())
 	app.pin(CacheTxContext, false, mode)
 
@@ -163,6 +162,7 @@ func (app *BaseApp) runAnte(info *runTxInfo, mode runTxMode) error {
 		// Also, in the case of the tx aborting, we need to track gas consumed via
 		// the instantiated gas meter in the AnteHandler, so we update the context
 		// prior to returning.
+
 		info.ctx = newCtx.WithMultiStore(ms)
 	}
 
@@ -184,8 +184,8 @@ func (app *BaseApp) runAnte(info *runTxInfo, mode runTxMode) error {
 		info.msCacheAnte.Write()
 		app.pin(CacheStoreWrite, false, mode)
 	}
-	info.ctx.Cache().Write(true, false)
 
+	info.ctx.Cache().Write(true, false)
 	return nil
 }
 
@@ -278,6 +278,7 @@ func (app *BaseApp) asyncDeliverTx(txWithIndex []byte) {
 }
 
 func useCache(mode runTxMode) bool {
+	return true
 	if mode == runTxModeDeliverInAsync {
 		return true
 	}
