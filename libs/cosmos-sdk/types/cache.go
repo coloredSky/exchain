@@ -368,6 +368,36 @@ func (c *Cache) Write(updateDirty bool, printLog bool) {
 	c.writeCode(c.parent, updateDirty)
 }
 
+type ReadList struct {
+	Account map[ethcmn.Address][]byte
+	Storage map[ethcmn.Address]map[ethcmn.Hash][]byte
+	Code    map[ethcmn.Hash][]byte
+}
+
+func (c *Cache) CopyRead() *ReadList {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	s := &ReadList{
+		Account: make(map[ethcmn.Address][]byte),
+		Storage: make(map[ethcmn.Address]map[ethcmn.Hash][]byte),
+		Code:    make(map[ethcmn.Hash][]byte),
+	}
+	for addr, v := range c.readaccMap {
+		s.Account[addr] = v.Bz
+	}
+	for addr, v := range c.readStorageMap {
+		s.Storage[addr] = make(map[ethcmn.Hash][]byte, 0)
+		for kk, vv := range v {
+			s.Storage[addr][kk] = vv
+		}
+	}
+	for hash, code := range c.readcodeMap {
+		s.Code[hash] = code
+	}
+	return s
+}
+
 func (c *Cache) WriteToNewCache(newCache *Cache) {
 	if c.skip() {
 		return
@@ -375,9 +405,7 @@ func (c *Cache) WriteToNewCache(newCache *Cache) {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	fmt.Println("write--storage")
 	c.writeStorage(newCache, true, true)
-	fmt.Println("write-storage")
 	c.writeAcc(newCache, true)
 	c.writeCode(newCache, true)
 
@@ -455,25 +483,24 @@ func (c *Cache) writeCode(parent *Cache, updateDirty bool) {
 	c.readcodeMap = make(map[ethcmn.Hash][]byte)
 }
 
-func (c *Cache) IsConflict(newCache *Cache, whiteAddr ethcmn.Address) bool {
+func (c *Cache) IsConflict(newCache *ReadList, whiteAddr ethcmn.Address) bool {
+	//fmt.Println("readStorageMap", len(newCache.readaccMap), len(newCache.readStorageMap), len(newCache.readcodeMap))
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	//fmt.Println("readStorageMap", len(newCache.readaccMap), len(newCache.readStorageMap), len(newCache.readcodeMap))
-
-	for acc, v := range newCache.readaccMap {
+	for acc, v := range newCache.Account {
 		if acc == whiteAddr {
 			continue
 		}
 		if data, ok := c.dirtyaccMap[acc]; ok && data.IsDirty {
-			if !bytes.Equal(v.Bz, data.Bz) {
+			if !bytes.Equal(v, data.Bz) {
 				fmt.Println("conflict-acc", acc.String())
 				return true
 			}
 		}
 	}
 
-	for acc, ss := range newCache.readStorageMap {
+	for acc, ss := range newCache.Storage {
 		//fmt.Println("readStorageMap", acc)
 		preSS, ok := c.dirtyStorageMap[acc]
 		if !ok {
@@ -494,7 +521,7 @@ func (c *Cache) IsConflict(newCache *Cache, whiteAddr ethcmn.Address) bool {
 		}
 	}
 
-	for acc, code := range newCache.readcodeMap {
+	for acc, code := range newCache.Code {
 		if data, ok := c.dirtycodeMap[acc]; ok && data.IsDirty {
 			if !bytes.Equal(code, data.Code) {
 				fmt.Println("conflict-code", acc.String())

@@ -1,7 +1,6 @@
 package keeper
 
 import (
-	"encoding/hex"
 	"fmt"
 	"github.com/okex/exchain/libs/cosmos-sdk/codec"
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
@@ -85,10 +84,7 @@ func (ak AccountKeeper) GetNextAccountNumber(ctx sdk.Context) uint64 {
 		}
 	}
 
-	fmt.Println("accNumber", hex.EncodeToString(bz))
 	bz = ak.cdc.MustMarshalBinaryLengthPrefixed(accNumber + 1)
-	fmt.Println("set-----", hex.EncodeToString(bz))
-	//debug.PrintStack()
 	store.Set(types.GlobalAccountNumberKey, bz)
 
 	return accNumber

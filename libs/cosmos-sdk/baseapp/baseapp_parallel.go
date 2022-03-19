@@ -261,8 +261,6 @@ func (app *BaseApp) runTxs(txs [][]byte, groupList map[int][]int, nextTxInGroup 
 			s := pm.txStatus[txBytes]
 			res := txReps[txIndex]
 
-			res.cache.Print(false)
-			fmt.Println("checkConflict", res.counter, pm.getRunBase(int(res.counter)))
 			if res.Conflict(pm.blockCache) || overFlow(currentGas, res.resp.GasUsed, maxGas) {
 				if pm.workgroup.isRunning(txIndex) {
 					runningTaskID := pm.workgroup.runningStats(txIndex)
@@ -342,7 +340,6 @@ func (app *BaseApp) runTxs(txs [][]byte, groupList map[int][]int, nextTxInGroup 
 	if len(txs) > 0 {
 		//waiting for call back
 		<-signal
-		fmt.Println("ReadTs", pm.readCnt, pm.writeCnt)
 		app.fixFeeCollector(txs, pm.cms)
 		receiptsLogs := app.endParallelTxs()
 		for index, v := range receiptsLogs {
@@ -358,8 +355,6 @@ func (app *BaseApp) runTxs(txs [][]byte, groupList map[int][]int, nextTxInGroup 
 	delete(tt, whiteAddr)
 	for add, v := range tt {
 		sb := append([]byte{0x01}, add.Bytes()...)
-
-		fmt.Println("new set----", hex.EncodeToString(sb), v.IsDirty, v.ISDelete, hex.EncodeToString(v.Bz))
 		if v.ISDelete {
 			accStore.Delete(sb)
 		} else {
@@ -374,7 +369,6 @@ func (app *BaseApp) runTxs(txs [][]byte, groupList map[int][]int, nextTxInGroup 
 		ss := prefix.NewStore(evmStore, append([]byte{0x05}, addr.Bytes()...))
 
 		for kk, vv := range v {
-			//fmt.Println("new set evm", kk.String(), hex.EncodeToString(vv.Value))
 			if vv.Delete {
 				ss.Delete(kk.Bytes())
 			} else {
@@ -459,7 +453,8 @@ type executeResult struct {
 	readList   map[string][]byte
 	writeList  map[string][]byte
 
-	cache *sdk.Cache
+	cache         *sdk.Cache
+	readCacheList *sdk.ReadList
 }
 
 func (e executeResult) GetResponse() abci.ResponseDeliverTx {
@@ -467,15 +462,11 @@ func (e executeResult) GetResponse() abci.ResponseDeliverTx {
 }
 
 func (e executeResult) Conflict(blockCache *sdk.Cache) bool {
-	//ts := time.Now()
-	//defer func() {
-	//	sdk.AddConflictTime(time.Now().Sub(ts))
-	//}()
 	if e.ms == nil {
 		return true //TODO fix later
 	}
 
-	return blockCache.IsConflict(e.cache, whiteAddr)
+	return blockCache.IsConflict(e.readCacheList, whiteAddr)
 
 	//for k, v := range e.readList {
 	//	if cc.isConflict(k, v) {
@@ -505,7 +496,7 @@ func loadPreData(ms sdk.CacheMultiStore) (map[string][]byte, map[string][]byte) 
 
 func newExecuteResult(r abci.ResponseDeliverTx, ms sdk.CacheMultiStore, counter uint32, evmCounter uint32, cache *sdk.Cache) *executeResult {
 	rSet, wSet := loadPreData(ms)
-	cc := cache.GetParent()
+	cc := cache.GetParent().CopyRead()
 	return &executeResult{
 		resp:       r,
 		ms:         ms,
@@ -513,7 +504,9 @@ func newExecuteResult(r abci.ResponseDeliverTx, ms sdk.CacheMultiStore, counter 
 		evmCounter: evmCounter,
 		readList:   rSet,
 		writeList:  wSet,
-		cache:      cc,
+
+		cache:         cache.GetParent(),
+		readCacheList: cc,
 	}
 }
 
@@ -766,14 +759,12 @@ func (f *parallelTxManager) getTxResult(tx []byte) (sdk.CacheMultiStore, *sdk.Ca
 			ms = f.txReps[preIndexInGroup].ms.CacheMultiStore()
 			base = preIndexInGroup
 			cc = f.txReps[preIndexInGroup].cache
-			fmt.Println("preIndexInGroup", preIndexInGroup)
 		} else {
 			ms = f.cms.CacheMultiStore()
 			base = f.currIndex
 		}
 
 	}
-	fmt.Println("runBase", index, base)
 	f.runBase[int(index)] = base
 	return ms, cc
 }
@@ -795,11 +786,7 @@ func (f *parallelTxManager) SetCurrentIndex(d int, res *executeResult) {
 		for k, v := range res.writeList {
 			f.cc.update(k, v)
 		}
-		//res.cache.Print(true)
-		//fmt.Println("beginWriteToBlock")
 		res.cache.WriteToNewCache(f.blockCache)
-		//fmt.Println("endWriteToBlock")
-		//f.blockCache.Print(false)
 		chanStop <- struct{}{}
 	}()
 
@@ -835,7 +822,6 @@ func (f *parallelTxManager) SetCurrentIndex(d int, res *executeResult) {
 	f.currIndex = d
 	f.mu.Unlock()
 	<-chanStop
-	fmt.Println("SetCurrent", d, f.getRunBase(d), len(f.txStatus))
 }
 
 var (
