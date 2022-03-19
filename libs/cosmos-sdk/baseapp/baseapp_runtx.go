@@ -278,7 +278,6 @@ func (app *BaseApp) asyncDeliverTx(txWithIndex []byte) {
 }
 
 func useCache(mode runTxMode) bool {
-	return true
 	if mode == runTxModeDeliverInAsync {
 		return true
 	}

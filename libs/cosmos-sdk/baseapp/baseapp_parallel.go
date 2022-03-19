@@ -359,7 +359,7 @@ func (app *BaseApp) runTxs(txs [][]byte, groupList map[int][]int, nextTxInGroup 
 	for add, v := range tt {
 		sb := append([]byte{0x01}, add.Bytes()...)
 
-		//fmt.Println("new set----", hex.EncodeToString(sb), v.IsDirty, v.ISDelete, hex.EncodeToString(v.Bz))
+		fmt.Println("new set----", hex.EncodeToString(sb), v.IsDirty, v.ISDelete, hex.EncodeToString(v.Bz))
 		if v.ISDelete {
 			accStore.Delete(sb)
 		} else {

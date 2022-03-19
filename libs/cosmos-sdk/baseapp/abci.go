@@ -1,6 +1,7 @@
 package baseapp
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/okex/exchain/libs/cosmos-sdk/store/types"
@@ -174,12 +175,15 @@ func (app *BaseApp) EndBlock(req abci.RequestEndBlock) (res abci.ResponseEndBloc
 	}
 
 	go func() {
-		app.deliverState.ms.IteratorCache(func(key, value []byte, isDirty bool, isDelete bool, storeKey types.StoreKey) bool {
-			if isDirty {
-				//fmt.Println("commit--", hex.EncodeToString(key), hex.EncodeToString(value), isDirty, isDelete)
-			}
-			return true
-		}, nil)
+		if app.deliverState.ctx.BlockHeight() == 5810700 {
+			app.deliverState.ms.IteratorCache(func(key, value []byte, isDirty bool, isDelete bool, storeKey types.StoreKey) bool {
+				if isDirty {
+					fmt.Println("commitabc", hex.EncodeToString(key), hex.EncodeToString(value), isDirty, isDelete)
+				}
+				return true
+			}, nil)
+
+		}
 
 		app.deliverState.ms.Write()
 		app.parallelTxManage.commitDone <- struct{}{}
