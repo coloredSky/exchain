@@ -405,6 +405,9 @@ func (c *Cache) WriteToNewCache(newCache *Cache) {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	newCache.mu.Lock()
+	defer newCache.mu.Unlock()
+
 	c.writeStorage(newCache, true, true)
 	c.writeAcc(newCache, true)
 	c.writeCode(newCache, true)
@@ -488,6 +491,7 @@ func (c *Cache) IsConflict(newCache *ReadList, whiteAddr ethcmn.Address) bool {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	for acc, v := range newCache.Account {
 		if acc == whiteAddr {
 			continue
