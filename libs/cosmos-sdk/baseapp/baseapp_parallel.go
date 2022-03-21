@@ -178,9 +178,6 @@ func (app *BaseApp) ParallelTxs(txs [][]byte) []*abci.ResponseDeliverTx {
 		app.parallelTxManage.txStatus[vString] = t
 		app.parallelTxManage.indexMapBytes = append(app.parallelTxManage.indexMapBytes, vString)
 	}
-
-	//sdk.AddPrePare(time.Now().Sub(ts))
-	//fmt.Println("calGroupTime", time.Now().Sub(ts).Milliseconds())
 	return app.runTxs(txWithIndex, groupList, nextIndexInGroup)
 
 }
@@ -466,16 +463,10 @@ func (e executeResult) Conflict(blockCache *sdk.Cache) bool {
 		return true //TODO fix later
 	}
 
+	if len(e.writeList) != 0 {
+		return true
+	}
 	return blockCache.IsConflict(e.readCacheList, whiteAddr)
-
-	//for k, v := range e.readList {
-	//	if cc.isConflict(k, v) {
-	//		fmt.Println("conflict", hex.EncodeToString([]byte(k)))
-	//		return true
-	//	}
-	//}
-
-	return false
 }
 
 func (e executeResult) GetCounter() uint32 {
@@ -496,7 +487,7 @@ func loadPreData(ms sdk.CacheMultiStore) (map[string][]byte, map[string][]byte) 
 
 func newExecuteResult(r abci.ResponseDeliverTx, ms sdk.CacheMultiStore, counter uint32, evmCounter uint32, cache *sdk.Cache) *executeResult {
 	rSet, wSet := loadPreData(ms)
-	cc := cache.GetParent().CopyRead()
+	cc := cache.GetParent().CopyRead(counter)
 	return &executeResult{
 		resp:       r,
 		ms:         ms,
@@ -612,7 +603,6 @@ type parallelTxManager struct {
 	mu  sync.RWMutex
 	cms sdk.CacheMultiStore
 
-	cc              *conflictCheck
 	currIndex       int
 	runBase         map[int]int
 	markFailedStats map[int]bool
@@ -687,7 +677,6 @@ func newParallelTxManager() *parallelTxManager {
 		nextTxInGroup: make(map[int]int),
 		preTxInGroup:  make(map[int]int),
 
-		cc:              newConflictCheck(),
 		currIndex:       -1,
 		runBase:         make(map[int]int),
 		markFailedStats: make(map[int]bool),
@@ -706,7 +695,6 @@ func (f *parallelTxManager) clear() {
 	f.preTxInGroup = make(map[int]int)
 	f.runBase = make(map[int]int)
 	f.currIndex = -1
-	f.cc.clear()
 	f.markFailedStats = make(map[int]bool)
 
 	f.workgroup.runningStatus = make(map[int]int)
@@ -783,9 +771,6 @@ func (f *parallelTxManager) SetCurrentIndex(d int, res *executeResult) {
 
 	chanStop := make(chan struct{}, 0)
 	go func() {
-		for k, v := range res.writeList {
-			f.cc.update(k, v)
-		}
 		res.cache.WriteToNewCache(f.blockCache)
 		chanStop <- struct{}{}
 	}()
