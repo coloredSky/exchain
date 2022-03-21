@@ -3,6 +3,7 @@ package mempool
 import (
 	"bytes"
 	"fmt"
+	"github.com/okex/exchain/libs/tendermint/mempool/tx"
 	"math"
 	"reflect"
 	"sync"
@@ -290,7 +291,6 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 						Wtx: wtx,
 					}
 				}
-
 			} else {
 				msg = &TxMessage{
 					Tx: memTx.tx,
@@ -326,6 +326,7 @@ func RegisterMessages(cdc *amino.Codec) {
 	cdc.RegisterInterface((*Message)(nil), nil)
 	cdc.RegisterConcrete(&TxMessage{}, "tendermint/mempool/TxMessage", nil)
 	cdc.RegisterConcrete(&WtxMessage{}, "tendermint/mempool/WtxMessage", nil)
+	cdc.RegisterConcrete(&tx.KtxMessage{}, "tendermint/mempool/KtxMessage", nil)
 
 	cdc.RegisterConcreteMarshaller("tendermint/mempool/TxMessage", func(codec *amino.Codec, i interface{}) ([]byte, error) {
 		txmp, ok := i.(*TxMessage)
@@ -488,4 +489,11 @@ func (memR *Reactor) wrapTx(tx types.Tx, from string) (*WrappedTx, error) {
 	}
 	wtx.Signature = sig
 	return wtx, nil
+}
+
+func (memR *Reactor) keyTx(originalTx types.Tx, keys []common.Hash) *tx.KeysTx {
+	return &tx.KeysTx{
+		OriginalTx: originalTx,
+		Keys:       keys,
+	}
 }

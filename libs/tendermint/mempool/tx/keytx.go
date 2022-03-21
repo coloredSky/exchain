@@ -1,21 +1,26 @@
 package tx
 
-import ethcmn "github.com/ethereum/go-ethereum/common"
+import "github.com/ethereum/go-ethereum/common"
 
-type KeyTx struct {
-	Payload []byte        `json:"payload"` // std tx or evm tx
-	Keys    []ethcmn.Hash `json:"keys"`    // signature for payload
+type KtxMessage struct {
+	*KeysTx
 }
 
-func (kx *KeyTx) GetPayload() []byte {
+type KeysTx struct {
+	// todo the original tx could be wtx
+	OriginalTx []byte        `json:"original_tx"` // std tx or evm tx
+	Keys       []common.Hash `json:"keys"`        // keys the original tx will read
+}
+
+func (kx *KeysTx) GetOriginalTx() []byte {
 	if kx != nil {
-		return kx.Payload
+		return kx.OriginalTx
 	}
 
 	return nil
 }
 
-func (kx *KeyTx) GetKeys() []ethcmn.Hash {
+func (kx *KeysTx) GetKeys() []common.Hash {
 	if kx != nil {
 		return kx.Keys
 	}
