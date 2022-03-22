@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
 	"math/big"
 	"sort"
 	"sync"
@@ -347,6 +348,7 @@ func (mem *CListMempool) CheckTx(tx types.Tx, cb func(*abci.Response), txInfo Tx
 			r.CheckTx.GasWanted = gasUsed
 		}
 	}
+
 	reqRes.SetCallback(mem.reqResCb(tx, txInfo, cb))
 	atomic.AddInt64(&mem.checkCnt, 1)
 	return nil
@@ -621,6 +623,8 @@ func (mem *CListMempool) resCbFirstTime(
 				signature:   txInfo.wtx.GetSignature(),
 				from:        r.CheckTx.Tx.GetFrom(),
 				senderNonce: r.CheckTx.SenderNonce,
+				ethAddr:     txInfo.ktx.GetEthAddr(),
+				keys:        txInfo.ktx.Keys,
 			}
 
 			memTx.senders.Store(txInfo.SenderID, true)
@@ -995,6 +999,8 @@ type mempoolTx struct {
 	signature   []byte
 	from        string
 	senderNonce uint64
+	ethAddr     common.Address
+	keys        []common.Hash
 
 	// ids of peers who've sent us this tx (as a map for quick lookups).
 	// senders: PeerID -> bool

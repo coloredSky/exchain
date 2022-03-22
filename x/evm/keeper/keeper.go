@@ -52,7 +52,7 @@ type Keeper struct {
 	innerBlockData BlockInnerData
 
 	// cache chain config
-	cci *chainConfigInfo
+	cci chainConfigInfo
 }
 
 type chainConfigInfo struct {
@@ -99,7 +99,7 @@ func NewKeeper(
 		Ada:           types.DefaultPrefixDb{},
 
 		innerBlockData: defaultBlockInnerData(),
-		cci:            &chainConfigInfo{},
+		//cci:            &chainConfigInfo{},
 	}
 	k.Watcher.SetWatchDataFunc()
 	if k.Watcher.Enabled() {

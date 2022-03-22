@@ -110,6 +110,7 @@ func NewBaseService(logger log.Logger, name string, impl Service) *BaseService {
 	if logger == nil {
 		logger = log.NewNopLogger()
 	}
+	logger = logger.With("service", name)
 
 	return &BaseService{
 		Logger: logger,

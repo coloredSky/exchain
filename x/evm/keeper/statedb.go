@@ -70,3 +70,12 @@ func (k *Keeper) ForEachStorage(ctx sdk.Context, addr ethcmn.Address, cb func(ke
 func (k *Keeper) GetOrNewStateObject(ctx sdk.Context, addr ethcmn.Address) types.StateObject {
 	return types.CreateEmptyCommitStateDB(k.GenerateCSDBParams(), ctx).GetOrNewStateObject(addr)
 }
+
+// WarmUpKeys when tendermint receive a tx with keys. in order to reduce i/o in deliver stage, we warm up it here
+func (k *Keeper) WarmUpKeys(ctx sdk.Context, addr ethcmn.Address, keys []ethcmn.Hash) {
+	for _, key := range keys {
+		go func(key ethcmn.Hash) {
+			k.GetState(ctx, addr, key)
+		}(key)
+	}
+}

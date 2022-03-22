@@ -332,3 +332,47 @@ func BenchmarkTxMessageAminoMarshal(b *testing.B) {
 		}
 	})
 }
+
+func TestReactor_encodeMsg(t *testing.T) {
+	type fields struct {
+		BaseReactor      p2p.BaseReactor
+		config           *cfg.MempoolConfig
+		mempool          *CListMempool
+		ids              *mempoolIDs
+		nodeKey          *p2p.NodeKey
+		nodeKeyWhitelist map[string]struct{}
+		enableWtx        bool
+	}
+	type args struct {
+		msg Message
+	}
+	var msg Message
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		want   []byte
+	}{
+		{"1. empty message", fields{BaseReactor: p2p.BaseReactor{},
+			config:           nil,
+			mempool:          nil,
+			ids:              nil,
+			nodeKey:          nil,
+			nodeKeyWhitelist: make(map[string]struct{}),
+			enableWtx:        true}, args{msg: msg}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			memR := &Reactor{
+				BaseReactor:      tt.fields.BaseReactor,
+				config:           tt.fields.config,
+				mempool:          tt.fields.mempool,
+				ids:              tt.fields.ids,
+				nodeKey:          tt.fields.nodeKey,
+				nodeKeyWhitelist: tt.fields.nodeKeyWhitelist,
+				enableWtx:        tt.fields.enableWtx,
+			}
+			assert.Equalf(t, tt.want, memR.encodeMsg(tt.args.msg), "encodeMsg(%v)", tt.args.msg)
+		})
+	}
+}

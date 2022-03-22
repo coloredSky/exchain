@@ -15,6 +15,7 @@ import (
 	cfg "github.com/okex/exchain/libs/tendermint/config"
 	"github.com/okex/exchain/libs/tendermint/libs/clist"
 	"github.com/okex/exchain/libs/tendermint/libs/log"
+	txtype "github.com/okex/exchain/libs/tendermint/mempool/tx"
 	"github.com/okex/exchain/libs/tendermint/p2p"
 	"github.com/okex/exchain/libs/tendermint/types"
 	"github.com/tendermint/go-amino"
@@ -209,6 +210,10 @@ func (memR *Reactor) Receive(chID byte, src p2p.Peer, msgBytes []byte) {
 			txInfo.checkType = abci.CheckTxType_WrappedCheck
 		}
 		// broadcasting happens from go routines per peer
+	case *txtype.KtxMessage:
+		tx = msg.GetOriginalTx()
+		txInfo.ktx = msg.KeysTx
+
 	default:
 		memR.Logger.Error(fmt.Sprintf("Unknown message type %v", reflect.TypeOf(msg)))
 		return
@@ -223,6 +228,40 @@ func (memR *Reactor) Receive(chID byte, src p2p.Peer, msgBytes []byte) {
 // PeerState describes the state of a peer.
 type PeerState interface {
 	GetHeight() int64
+}
+
+func (memR *Reactor) buildBroadcastMessage(memTx *mempoolTx) (message Message) {
+	if memTx.nodeKey != nil && memTx.signature != nil {
+		return &WtxMessage{
+			Wtx: &WrappedTx{
+				Payload:   memTx.tx,
+				From:      memTx.from,
+				Signature: memTx.signature,
+				NodeKey:   memTx.nodeKey,
+			},
+		}
+	} else if len(memTx.keys) != 0 {
+		if ktx, err := memR.keysTx(memTx.tx, memTx.keys); err == nil {
+			return &tx.KtxMessage{
+				KeysTx: ktx,
+			}
+		} else {
+			memR.Logger.Error("can not add tx with keys", "err", err, "tx", memTx.tx, "keys", memTx.keys)
+		}
+	} else if memR.enableWtx {
+		if wtx, err := memR.wrapTx(memTx.tx, memTx.from); err == nil {
+			return &WtxMessage{
+				Wtx: wtx,
+			}
+		} else {
+			memR.Logger.Error("can not wrapper tx", "err", err, "tx", memTx.tx, "from", memTx.from)
+		}
+	}
+
+	// at least we broadcast the original TxMessage
+	return &TxMessage{
+		Tx: memTx.tx,
+	}
 }
 
 // Send new mempool txs to peer.
@@ -275,27 +314,7 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 		// ensure peer hasn't already sent us this tx
 		if _, ok := memTx.senders.Load(peerID); !ok {
 			// send memTx
-			var msg Message
-			if memTx.nodeKey != nil && memTx.signature != nil {
-				msg = &WtxMessage{
-					Wtx: &WrappedTx{
-						Payload:   memTx.tx,
-						From:      memTx.from,
-						Signature: memTx.signature,
-						NodeKey:   memTx.nodeKey,
-					},
-				}
-			} else if memR.enableWtx {
-				if wtx, err := memR.wrapTx(memTx.tx, memTx.from); err == nil {
-					msg = &WtxMessage{
-						Wtx: wtx,
-					}
-				}
-			} else {
-				msg = &TxMessage{
-					Tx: memTx.tx,
-				}
-			}
+			msg := memR.buildBroadcastMessage(memTx)
 
 			success := peer.Send(MempoolChannel, memR.encodeMsg(msg))
 			if !success {
@@ -351,6 +370,9 @@ func (memR *Reactor) decodeMsg(bz []byte) (msg Message, err error) {
 }
 
 func (memR *Reactor) encodeMsg(msg Message) []byte {
+	if msg == nil {
+		return nil
+	}
 	var ok bool
 	var txmp *TxMessage
 	var txm TxMessage
@@ -491,9 +513,9 @@ func (memR *Reactor) wrapTx(tx types.Tx, from string) (*WrappedTx, error) {
 	return wtx, nil
 }
 
-func (memR *Reactor) keyTx(originalTx types.Tx, keys []common.Hash) *tx.KeysTx {
+func (memR *Reactor) keysTx(originalTx types.Tx, keys []common.Hash) (*tx.KeysTx, error) {
 	return &tx.KeysTx{
 		OriginalTx: originalTx,
 		Keys:       keys,
-	}
+	}, nil
 }
