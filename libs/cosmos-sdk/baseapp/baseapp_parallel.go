@@ -8,7 +8,6 @@ import (
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/okex/exchain/libs/cosmos-sdk/store/prefix"
-	"github.com/okex/exchain/libs/cosmos-sdk/store/types"
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
 	sdkerrors "github.com/okex/exchain/libs/cosmos-sdk/types/errors"
 	abci "github.com/okex/exchain/libs/tendermint/abci/types"
@@ -124,7 +123,8 @@ func (app *BaseApp) calGroup(txsExtraData []*extraDataForTx) (map[int][]int, map
 
 	nextTxIndexInGroup := make(map[int]int)
 	preTxIndexInGroup := make(map[int]int)
-	for _, list := range groupList {
+	txIndexWithGroupID := make(map[int]int)
+	for groupIndex, list := range groupList {
 		for index := 0; index < len(list); index++ {
 			if index+1 <= len(list)-1 {
 				nextTxIndexInGroup[list[index]] = list[index+1]
@@ -132,10 +132,13 @@ func (app *BaseApp) calGroup(txsExtraData []*extraDataForTx) (map[int][]int, map
 			if index-1 >= 0 {
 				preTxIndexInGroup[list[index]] = list[index-1]
 			}
+			txIndexWithGroupID[list[index]] = groupIndex
 		}
 	}
 	app.parallelTxManage.nextTxInGroup = nextTxIndexInGroup
 	app.parallelTxManage.preTxInGroup = preTxIndexInGroup
+	app.parallelTxManage.txIndexWithGroupID = txIndexWithGroupID
+	app.parallelTxManage.conflictCheck = make(map[string]A, 0)
 	return groupList, nextTxIndexInGroup
 }
 
@@ -258,7 +261,7 @@ func (app *BaseApp) runTxs(txs [][]byte, groupList map[int][]int, nextTxInGroup 
 			s := pm.txStatus[txBytes]
 			res := txReps[txIndex]
 
-			if res.Conflict(pm.blockCache) || overFlow(currentGas, res.resp.GasUsed, maxGas) {
+			if pm.Conflict(res) || overFlow(currentGas, res.resp.GasUsed, maxGas) {
 				if pm.workgroup.isRunning(txIndex) {
 					runningTaskID := pm.workgroup.runningStats(txIndex)
 					pm.markFailed(runningTaskID)
@@ -362,16 +365,17 @@ func (app *BaseApp) runTxs(txs [][]byte, groupList map[int][]int, nextTxInGroup 
 	evmStore := pm.cms.GetKVStore(pm.cms.GetStoreKey()["evm"])
 
 	storaget := pm.blockCache.GetDirtyStorage()
-	for addr, v := range storaget {
+	for sKey, v := range storaget {
+
+		addr, key := sdk.DecodeMsg(sKey)
 		ss := prefix.NewStore(evmStore, append([]byte{0x05}, addr.Bytes()...))
 
-		for kk, vv := range v {
-			if vv.Delete {
-				ss.Delete(kk.Bytes())
-			} else {
-				ss.Set(kk.Bytes(), vv.Value)
-			}
+		if v.Delete {
+			ss.Delete(key.Bytes())
+		} else {
+			ss.Set(key.Bytes(), v.Value)
 		}
+
 	}
 
 	dirtyCode := pm.blockCache.GetDirtyCode()
@@ -436,38 +440,74 @@ func (app *BaseApp) deliverTxWithCache(txByte []byte, txIndex int) *executeResul
 	return asyncExe
 }
 
-type readData struct {
-	value []byte
-	sKey  types.StoreKey
-}
-
 type executeResult struct {
-	resp       abci.ResponseDeliverTx
-	ms         sdk.CacheMultiStore
-	counter    uint32
-	err        error
-	evmCounter uint32
-	readList   map[string][]byte
-	writeList  map[string][]byte
+	resp          abci.ResponseDeliverTx
+	ms            sdk.CacheMultiStore
+	counter       uint32
+	err           error
+	evmCounter    uint32
+	readList      map[string][]byte
+	writeList     map[string][]byte
+	iavlWriteList map[string][]byte
 
-	cache         *sdk.Cache
-	readCacheList *sdk.ReadList
+	cache *sdk.Cache
 }
 
 func (e executeResult) GetResponse() abci.ResponseDeliverTx {
 	return e.resp
 }
 
-func (e executeResult) Conflict(blockCache *sdk.Cache) bool {
+func (f *parallelTxManager) Conflict(e *executeResult) bool {
+	base := f.getRunBase(int(e.counter))
 	if e.ms == nil {
-		return true //TODO fix later
-	}
-
-	if len(e.writeList) != 0 {
 		return true
 	}
-	return blockCache.IsConflict(e.readCacheList, whiteAddr)
+	if len(e.iavlWriteList) != 0 {
+		return true
+	}
+
+	for k, v := range e.readList {
+
+		if dirtyIndex, ok := f.conflictCheck[k]; ok {
+			fmt.Println("k", k, "readValue", hex.EncodeToString(v), "dirtyValue", hex.EncodeToString(dirtyIndex.value), "dirty", dirtyIndex.txIndex)
+			if !bytes.Equal(dirtyIndex.value, v) {
+				return true
+			} else {
+				if base < dirtyIndex.txIndex && f.txIndexWithGroupID[dirtyIndex.txIndex] != f.txIndexWithGroupID[int(e.counter)] {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
+
+//func (e executeResult) Conflict(blockCache *sdk.Cache) bool {
+//	if e.ms == nil {
+//		return true //TODO fix later
+//	}
+//
+//	if len(e.writeList) != 0 {
+//		return true
+//	}
+//
+//	for k, v := range e.readList {
+//		if dirtyIndex,ok:=
+//
+//		if dirtyTxIndex, ok := p.cc.items[key]; ok {
+//			if !bytes.Equal(dirtyTxIndex.value, readValue) {
+//				return true
+//			} else {
+//				if base < dirtyTxIndex.txIndex && p.txIndexWithGroupID[dirtyTxIndex.txIndex] != p.txIndexWithGroupID[txIndex] {
+//					return true
+//				}
+//			}
+//		}
+//
+//	}
+//
+//	return blockCache.IsConflict(e.readList, whiteAddr)
+//}
 
 func (e executeResult) GetCounter() uint32 {
 	return e.counter
@@ -486,18 +526,17 @@ func loadPreData(ms sdk.CacheMultiStore) (map[string][]byte, map[string][]byte) 
 }
 
 func newExecuteResult(r abci.ResponseDeliverTx, ms sdk.CacheMultiStore, counter uint32, evmCounter uint32, cache *sdk.Cache) *executeResult {
-	rSet, wSet := loadPreData(ms)
-	cc := cache.GetParent().CopyRead(counter)
+	_, isvlWset := loadPreData(ms)
+	rSet, wSet := cache.GetParent().GetRWSet()
 	return &executeResult{
-		resp:       r,
-		ms:         ms,
-		counter:    counter,
-		evmCounter: evmCounter,
-		readList:   rSet,
-		writeList:  wSet,
-
+		resp:          r,
+		ms:            ms,
+		counter:       counter,
+		evmCounter:    evmCounter,
+		readList:      rSet,
+		writeList:     wSet,
+		iavlWriteList: isvlWset,
 		cache:         cache.GetParent(),
-		readCacheList: cc,
 	}
 }
 
@@ -567,6 +606,9 @@ func (a *asyncWorkGroup) Start() {
 			for true {
 				select {
 				case task := <-a.taskCh:
+					//if task.index == 1 {
+					//	time.Sleep(3 * time.Second)
+					//}
 					a.taskRun(task.txBytes)
 				}
 			}
@@ -596,9 +638,10 @@ type parallelTxManager struct {
 	txStatus      map[string]*txStatus
 	indexMapBytes []string
 
-	txReps        []*executeResult
-	nextTxInGroup map[int]int
-	preTxInGroup  map[int]int
+	txReps             []*executeResult
+	nextTxInGroup      map[int]int
+	preTxInGroup       map[int]int
+	txIndexWithGroupID map[int]int
 
 	mu  sync.RWMutex
 	cms sdk.CacheMultiStore
@@ -609,44 +652,19 @@ type parallelTxManager struct {
 	commitDone      chan struct{}
 
 	blockCache *sdk.Cache
-	readCnt    int
-	writeCnt   int
+
+	conflictCheck map[string]A
 }
 
-type conflictCheck struct {
-	items map[string][]byte
-}
-
-func newConflictCheck() *conflictCheck {
-	return &conflictCheck{
-		items: make(map[string][]byte),
-	}
-}
-
-func (c *conflictCheck) update(key string, value []byte) {
-	c.items[key] = value
-}
-func (c *conflictCheck) clear() {
-	c.items = make(map[string][]byte, 0)
+type A struct {
+	value   []byte
+	txIndex int
 }
 
 var (
 	whiteAcc  = string(hexutil.MustDecode("0x01f1829676db577682e944fc3493d451b67ff3e29f")) //fee
 	whiteAddr = ethcommon.HexToAddress("0xf1829676db577682e944fc3493d451b67ff3e29f")
 )
-
-func (c *conflictCheck) isConflict(key string, vaule []byte) bool {
-	if key == whiteAcc {
-		return false
-	}
-
-	if dirtyItem, ok := c.items[key]; ok {
-		if !bytes.Equal(vaule, dirtyItem) {
-			return true
-		}
-	}
-	return false
-}
 
 type task struct {
 	txBytes []byte
@@ -701,8 +719,6 @@ func (f *parallelTxManager) clear() {
 	f.workgroup.isrunning = make(map[int]bool)
 	f.workgroup.indexInAll = 0
 
-	f.readCnt = 0
-	f.writeCnt = 0
 }
 
 func (f *parallelTxManager) markFailed(txIndexAll int) {
@@ -745,14 +761,15 @@ func (f *parallelTxManager) getTxResult(tx []byte) (sdk.CacheMultiStore, *sdk.Ca
 	if ok && preIndexInGroup > f.currIndex {
 		if f.txStatus[f.indexMapBytes[preIndexInGroup]].anteErr == nil {
 			ms = f.txReps[preIndexInGroup].ms.CacheMultiStore()
-			base = preIndexInGroup
+			//base = preIndexInGroup
 			cc = f.txReps[preIndexInGroup].cache
 		} else {
 			ms = f.cms.CacheMultiStore()
-			base = f.currIndex
+			//base = f.currIndex
 		}
 
 	}
+	fmt.Println("runBase", index, base)
 	f.runBase[int(index)] = base
 	return ms, cc
 }
@@ -772,18 +789,17 @@ func (f *parallelTxManager) SetCurrentIndex(d int, res *executeResult) {
 	chanStop := make(chan struct{}, 0)
 	go func() {
 		res.cache.WriteToNewCache(f.blockCache)
+		for k, v := range res.writeList {
+			f.conflictCheck[k] = A{
+				value:   v,
+				txIndex: d,
+			}
+		}
 		chanStop <- struct{}{}
 	}()
 
 	f.mu.Lock()
-	r, w := res.ms.Display()
-	for _, v := range r {
-		f.readCnt += v
-	}
 
-	for _, v := range w {
-		f.writeCnt += v
-	}
 	res.ms.IteratorCache(func(key, value []byte, isDirty bool, isdelete bool, storeKey sdk.StoreKey) bool {
 		if isDirty {
 			if storeKey.Name() == "acc" {
