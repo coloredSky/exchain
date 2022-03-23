@@ -20,7 +20,7 @@ func (m *modeHandlerDeliverInAsync) handleDeferRefund(info *runTxInfo) {
 		panic(err)
 	}
 	info.writeCache()
-	app.parallelTxManage.setRefundFee(string(info.txBytes), refundGas)
+	info.paraMsg.refundFee = refundGas
 }
 
 func (m *modeHandlerDeliverInAsync) handleDeferGasConsumed(info *runTxInfo) {
