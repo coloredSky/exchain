@@ -3,8 +3,6 @@ package cachekv
 import (
 	"bytes"
 	"container/list"
-	"encoding/hex"
-	"fmt"
 	"io"
 	"reflect"
 	"sort"
@@ -80,18 +78,6 @@ func (store *Store) Get(key []byte) (value []byte) {
 
 func (store *Store) GetStoreKey() map[string]types.StoreKey {
 	panic("not implement")
-}
-
-func (store *Store) Display() (map[types.StoreKey]int, map[types.StoreKey]int) {
-	store.mtx.Lock()
-	defer store.mtx.Unlock()
-
-	for k, v := range store.dirty {
-		if !v.dirty {
-			fmt.Println("fuck--", hex.EncodeToString([]byte(k)), v.dirty, v.deleted, hex.EncodeToString(v.value))
-		}
-	}
-	return map[types.StoreKey]int{types.NullStoreKey: len(store.readList)}, map[types.StoreKey]int{types.NullStoreKey: len(store.dirty)}
 }
 
 func (store *Store) IteratorCache(cb func(key, value []byte, isDirty bool, isDelete bool, sKey types.StoreKey) bool, sKey types.StoreKey) bool {

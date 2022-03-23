@@ -65,7 +65,6 @@ func (app *BaseApp) runtxWithInfo(info *runTxInfo, mode runTxMode, txBytes []byt
 		//traceBlockCache was created with different root(chainCache) with app.blockCache in app.BeginBlockForTrace()
 		info.ctx = info.ctx.WithCache(sdk.NewCache(app.blockCache, useCache(mode)))
 	}
-
 	for _, addr := range from {
 		// cache from if exist
 		if addr != "" {
@@ -145,7 +144,6 @@ func (app *BaseApp) runAnte(info *runTxInfo, mode runTxMode) error {
 
 		anteCtx = anteCtx.WithCache(info.ctx.Cache())
 	}
-
 	anteCtx = anteCtx.WithEventManager(sdk.NewEventManager())
 	app.pin(CacheTxContext, false, mode)
 
@@ -170,7 +168,6 @@ func (app *BaseApp) runAnte(info *runTxInfo, mode runTxMode) error {
 		// Also, in the case of the tx aborting, we need to track gas consumed via
 		// the instantiated gas meter in the AnteHandler, so we update the context
 		// prior to returning.
-
 		info.ctx = newCtx.WithMultiStore(ms)
 	}
 

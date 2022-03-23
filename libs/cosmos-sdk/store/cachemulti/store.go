@@ -152,21 +152,6 @@ func (cms Store) GetStoreKey() map[string]types.StoreKey {
 	return ans
 }
 
-func (cms Store) Display() (map[types.StoreKey]int, map[types.StoreKey]int) {
-	r := make(map[types.StoreKey]int, 0)
-	w := make(map[types.StoreKey]int, 0)
-	for key, store := range cms.stores {
-		rr, ww := store.Display()
-		r[key] = rr[types.NullStoreKey]
-		w[key] = ww[types.NullStoreKey]
-		if r[key] != 0 && !whiteMap[key.Name()] {
-			fmt.Println("fuck----", key.Name(), r[key], w[key])
-		}
-	}
-
-	return r, w
-}
-
 func (cms Store) IteratorCache(cb func(key, value []byte, isDirty bool, isDelete bool, storeKey types.StoreKey) bool, sKey types.StoreKey) bool {
 	for key, store := range cms.stores {
 		if !store.IteratorCache(cb, key) {
