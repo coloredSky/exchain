@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/okex/exchain/libs/cosmos-sdk/store/prefix"
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
 	sdkerrors "github.com/okex/exchain/libs/cosmos-sdk/types/errors"
@@ -463,17 +462,21 @@ func (f *parallelTxManager) Conflict(e *executeResult) bool {
 		return true
 	}
 	if len(e.iavlWriteList) != 0 {
+		fmt.Println("conflict-iavl-dirt")
 		return true
 	}
 
 	for k, v := range e.readList {
 
 		if dirtyIndex, ok := f.conflictCheck[k]; ok {
-			fmt.Println("k", k, "readValue", hex.EncodeToString(v), "dirtyValue", hex.EncodeToString(dirtyIndex.value), "dirty", dirtyIndex.txIndex)
+			//fmt.Println("conflict", k, "readValue", hex.EncodeToString(v), "dirtyValue", hex.EncodeToString(dirtyIndex.value), "dirty", dirtyIndex.txIndex)
 			if !bytes.Equal(dirtyIndex.value, v) {
+				fmt.Println("conflict-1", k, "readValue", hex.EncodeToString(v), "dirtyValue", hex.EncodeToString(dirtyIndex.value), "dirty", dirtyIndex.txIndex)
+
 				return true
 			} else {
 				if base < dirtyIndex.txIndex && f.txIndexWithGroupID[dirtyIndex.txIndex] != f.txIndexWithGroupID[int(e.counter)] {
+					fmt.Println("conflict-2", k, "readValue", hex.EncodeToString(v), "base", base, "dirty", dirtyIndex.txIndex, "txIndex", e.counter)
 					return true
 				}
 			}
@@ -528,6 +531,8 @@ func loadPreData(ms sdk.CacheMultiStore) (map[string][]byte, map[string][]byte) 
 func newExecuteResult(r abci.ResponseDeliverTx, ms sdk.CacheMultiStore, counter uint32, evmCounter uint32, cache *sdk.Cache) *executeResult {
 	_, isvlWset := loadPreData(ms)
 	rSet, wSet := cache.GetParent().GetRWSet()
+	delete(rSet, whiteAcc)
+	delete(rSet, whiteAcc)
 	return &executeResult{
 		resp:          r,
 		ms:            ms,
@@ -662,7 +667,7 @@ type A struct {
 }
 
 var (
-	whiteAcc  = string(hexutil.MustDecode("0x01f1829676db577682e944fc3493d451b67ff3e29f")) //fee
+	whiteAcc  = ethcommon.HexToAddress("0xf1829676db577682e944fc3493d451b67ff3e29f").String() //fee
 	whiteAddr = ethcommon.HexToAddress("0xf1829676db577682e944fc3493d451b67ff3e29f")
 )
 
