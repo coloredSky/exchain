@@ -472,6 +472,7 @@ func newExecuteResult(r abci.ResponseDeliverTx, ms sdk.CacheMultiStore, counter 
 
 	_, iavlSet := loadPreData(ms)
 	rSet, wSet := cache.GetParent().GetRWSet()
+
 	delete(rSet, whiteAcc)
 	delete(wSet, whiteAcc)
 
@@ -487,7 +488,7 @@ func newExecuteResult(r abci.ResponseDeliverTx, ms sdk.CacheMultiStore, counter 
 		refundFee:     refundFee,
 		iavlWriteList: iavlSet,
 
-		cache: cache,
+		cache: cache.GetParent(),
 	}
 }
 
@@ -629,12 +630,6 @@ func newConflictCheck() *conflictCheck {
 	}
 }
 
-func (c *conflictCheck) update(key string, value []byte, txIndex int) {
-	c.items[key] = A{
-		value:   value,
-		txIndex: txIndex,
-	}
-}
 func (c *conflictCheck) clear() {
 	c.items = make(map[string]A, 0)
 }
