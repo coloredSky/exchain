@@ -253,13 +253,13 @@ func (app *BaseApp) asyncDeliverTx(txWithIndex []byte) {
 	txStatus := app.parallelTxManage.txStatus[string(txWithIndex)]
 	tx, err := app.txDecoder(getRealTxByte(txWithIndex))
 	if err != nil {
-		asyncExe := newExecuteResult(sdkerrors.ResponseDeliverTx(err, 0, 0, app.trace), nil, txStatus.indexInBlock, txStatus.evmIndex, nil, nil)
+		asyncExe := newExecuteResult(sdkerrors.ResponseDeliverTx(err, 0, 0, app.trace), nil, txStatus.indexInBlock, txStatus.evmIndex, nil, nil, nil)
 		app.parallelTxManage.workgroup.Push(asyncExe)
 		return
 	}
 
 	if !txStatus.isEvmTx {
-		asyncExe := newExecuteResult(abci.ResponseDeliverTx{}, nil, txStatus.indexInBlock, txStatus.evmIndex, nil, nil)
+		asyncExe := newExecuteResult(abci.ResponseDeliverTx{}, nil, txStatus.indexInBlock, txStatus.evmIndex, nil, nil, nil)
 		app.parallelTxManage.workgroup.Push(asyncExe)
 		return
 	}
@@ -280,7 +280,7 @@ func (app *BaseApp) asyncDeliverTx(txWithIndex []byte) {
 		}
 	}
 
-	asyncExe := newExecuteResult(resp, m, txStatus.indexInBlock, txStatus.evmIndex, info.paraMsg.anteErr, info.paraMsg.refundFee)
+	asyncExe := newExecuteResult(resp, m, txStatus.indexInBlock, txStatus.evmIndex, a.ctx.Cache(), a.paraMsg.anteErr, a.paraMsg.refundFee)
 	asyncExe.err = e
 	app.parallelTxManage.workgroup.Push(asyncExe)
 }

@@ -3,9 +3,10 @@ package baseapp
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/okex/exchain/libs/cosmos-sdk/store/prefix"
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
 	sdkerrors "github.com/okex/exchain/libs/cosmos-sdk/types/errors"
 	abci "github.com/okex/exchain/libs/tendermint/abci/types"
@@ -161,6 +162,7 @@ func (app *BaseApp) ParallelTxs(txs [][]byte) []*abci.ResponseDeliverTx {
 	app.parallelTxManage.isAsyncDeliverTx = true
 	app.parallelTxManage.cms = app.deliverState.ms.CacheMultiStore()
 	app.parallelTxManage.runBase = make([]int, len(txs))
+	app.parallelTxManage.blockCache = sdk.NewCache(app.chainCache, true)
 
 	evmIndex := uint32(0)
 	for k := range txs {
@@ -332,10 +334,53 @@ func (app *BaseApp) runTxs(txs [][]byte, groupList map[int][]int, nextTxInGroup 
 		}
 
 	}
+
+	accStore := pm.cms.GetKVStore(pm.cms.GetStoreKey()["acc"])
+	tt := pm.blockCache.GetDirtyAcc()
+	delete(tt, whiteAddr)
+	for add, v := range tt {
+		sb := append([]byte{0x01}, add.Bytes()...)
+		if v.ISDelete {
+			accStore.Delete(sb)
+		} else {
+			accStore.Set(sb, v.Bz)
+		}
+	}
+
+	evmStore := pm.cms.GetKVStore(pm.cms.GetStoreKey()["evm"])
+
+	storaget := pm.blockCache.GetDirtyStorage()
+	for sKey, v := range storaget {
+
+		addr, key := sdk.DecodeMsg(sKey)
+		ss := prefix.NewStore(evmStore, append([]byte{0x05}, addr.Bytes()...))
+
+		if v.Delete {
+			ss.Delete(key.Bytes())
+		} else {
+			ss.Set(key.Bytes(), v.Value)
+		}
+
+	}
+
+	dirtyCode := pm.blockCache.GetDirtyCode()
+	for codeHash, v := range dirtyCode {
+		ss := prefix.NewStore(evmStore, append([]byte{0x04}))
+		if v.IsDirty {
+			ss.Set(codeHash.Bytes(), v.Code)
+		}
+	}
+
 	pm.cms.Write()
-	//sdk.AddRunTx(time.Now().Sub(ts))
+	pm.blockCache.Write(true, false)
+
 	return deliverTxs
 }
+
+var (
+	whiteAcc  = ethcommon.HexToAddress("0xf1829676db577682e944fc3493d451b67ff3e29f").String() //fee
+	whiteAddr = ethcommon.HexToAddress("0xf1829676db577682e944fc3493d451b67ff3e29f")
+)
 
 func (app *BaseApp) endParallelTxs() [][]byte {
 
@@ -359,7 +404,7 @@ func (app *BaseApp) deliverTxWithCache(txByte []byte, txIndex int) *executeResul
 
 	tx, err := app.txDecoder(getRealTxByte(txByte))
 	if err != nil {
-		asyncExe := newExecuteResult(sdkerrors.ResponseDeliverTx(err, 0, 0, app.trace), nil, txStatus.indexInBlock, txStatus.evmIndex, nil, nil)
+		asyncExe := newExecuteResult(sdkerrors.ResponseDeliverTx(err, 0, 0, app.trace), nil, txStatus.indexInBlock, txStatus.evmIndex, nil, nil, nil)
 		return asyncExe
 	}
 	var (
@@ -381,7 +426,7 @@ func (app *BaseApp) deliverTxWithCache(txByte []byte, txIndex int) *executeResul
 		}
 	}
 
-	asyncExe := newExecuteResult(resp, m, txStatus.indexInBlock, txStatus.evmIndex, info.paraMsg.anteErr, info.paraMsg.refundFee)
+	asyncExe := newExecuteResult(resp, m, txStatus.indexInBlock, txStatus.evmIndex, info.ctx.Cache(), info.paraMsg.anteErr, info.paraMsg.refundFee)
 	asyncExe.err = e
 	return asyncExe
 }
@@ -395,8 +440,12 @@ type executeResult struct {
 	readList   map[string][]byte
 	writeList  map[string][]byte
 
+	iavlWriteList map[string][]byte
+
 	anteErr   error
 	refundFee sdk.Coins
+
+	cache *sdk.Cache
 }
 
 func (e executeResult) GetResponse() abci.ResponseDeliverTx {
@@ -419,8 +468,10 @@ func loadPreData(ms sdk.CacheMultiStore) (map[string][]byte, map[string][]byte) 
 	return rSet, wSet
 }
 
-func newExecuteResult(r abci.ResponseDeliverTx, ms sdk.CacheMultiStore, counter uint32, evmCounter uint32, anteErr error, refundFee sdk.Coins) *executeResult {
-	rSet, wSet := loadPreData(ms)
+func newExecuteResult(r abci.ResponseDeliverTx, ms sdk.CacheMultiStore, counter uint32, evmCounter uint32, cache *sdk.Cache, anteErr error, refundFee sdk.Coins) *executeResult {
+
+	_, iavlSet := loadPreData(ms)
+	rSet, wSet := cache.GetParent().GetRWSet()
 	delete(rSet, whiteAcc)
 	delete(wSet, whiteAcc)
 
@@ -432,8 +483,11 @@ func newExecuteResult(r abci.ResponseDeliverTx, ms sdk.CacheMultiStore, counter 
 		readList:   rSet,
 		writeList:  wSet,
 
-		anteErr:   anteErr,
-		refundFee: refundFee,
+		anteErr:       anteErr,
+		refundFee:     refundFee,
+		iavlWriteList: iavlSet,
+
+		cache: cache,
 	}
 }
 
@@ -557,6 +611,8 @@ type parallelTxManager struct {
 	currIndex  int
 	runBase    []int
 	commitDone chan struct{}
+
+	blockCache *sdk.Cache
 }
 type A struct {
 	value   []byte
@@ -583,36 +639,34 @@ func (c *conflictCheck) clear() {
 	c.items = make(map[string]A, 0)
 }
 
-var (
-	whiteAcc = string(hexutil.MustDecode("0x01f1829676db577682e944fc3493d451b67ff3e29f")) //fee
-)
-
 func (pm *parallelTxManager) newIsConflict(e *executeResult) bool {
-	base := pm.runBase[e.counter]
+	base := pm.getRunBase(int(e.counter))
 	if e.ms == nil {
-		return true //TODO fix later
+		return true
 	}
-	for k, readValue := range e.readList {
-
-		if pm.isConflict(base, k, readValue, int(e.counter)) {
-			return true
-		}
+	if len(e.iavlWriteList) != 0 {
+		fmt.Println("conflict-iavl-dirt")
+		return true
 	}
-	return false
 
-}
+	for k, v := range e.readList {
 
-func (p *parallelTxManager) isConflict(base int, key string, readValue []byte, txIndex int) bool {
-	if dirtyTxIndex, ok := p.cc.items[key]; ok {
-		if !bytes.Equal(dirtyTxIndex.value, readValue) {
-			return true
-		} else {
-			if base < dirtyTxIndex.txIndex && p.txIndexWithGroupID[dirtyTxIndex.txIndex] != p.txIndexWithGroupID[txIndex] {
+		if dirtyIndex, ok := pm.cc.items[k]; ok {
+			//fmt.Println("conflict", k, "readValue", hex.EncodeToString(v), "dirtyValue", hex.EncodeToString(dirtyIndex.value), "dirty", dirtyIndex.txIndex)
+			if !bytes.Equal(dirtyIndex.value, v) {
+				fmt.Println("conflict-1", k, "readValue", hex.EncodeToString(v), "dirtyValue", hex.EncodeToString(dirtyIndex.value), "dirty", dirtyIndex.txIndex)
+
 				return true
+			} else {
+				if base < dirtyIndex.txIndex && pm.txIndexWithGroupID[dirtyIndex.txIndex] != pm.txIndexWithGroupID[int(e.counter)] {
+					fmt.Println("conflict-2", k, "readValue", hex.EncodeToString(v), "base", base, "dirty", dirtyIndex.txIndex, "txIndex", e.counter)
+					return true
+				}
 			}
 		}
 	}
 	return false
+
 }
 
 type task struct {
@@ -675,7 +729,7 @@ func (f *parallelTxManager) isReRun(tx string) bool {
 	return data.reRun
 }
 
-func (f *parallelTxManager) getTxResult(tx []byte) sdk.CacheMultiStore {
+func (f *parallelTxManager) getTxResult(tx []byte) (sdk.CacheMultiStore, *sdk.Cache) {
 	index := int(f.txStatus[string(tx)].indexInBlock)
 	preIndexInGroup, ok := f.preTxInGroup[index]
 	f.mu.Lock()
@@ -683,10 +737,12 @@ func (f *parallelTxManager) getTxResult(tx []byte) sdk.CacheMultiStore {
 	ms := f.cms.CacheMultiStore()
 	base := f.currIndex
 	parent := f.currIndex
+	cc := f.blockCache
 	if ok && preIndexInGroup > f.currIndex {
 		if f.txReps[preIndexInGroup].anteErr == nil {
 			ms = f.txReps[preIndexInGroup].ms.CacheMultiStore()
 			parent = preIndexInGroup
+			cc = f.txReps[preIndexInGroup].cache
 		} else {
 			ms = f.cms.CacheMultiStore()
 		}
@@ -704,7 +760,7 @@ func (f *parallelTxManager) getTxResult(tx []byte) sdk.CacheMultiStore {
 
 	f.runBase[index] = base
 
-	return ms
+	return ms, cc
 }
 
 func (f *parallelTxManager) getRunBase(now int) int {
@@ -712,21 +768,36 @@ func (f *parallelTxManager) getRunBase(now int) int {
 }
 
 func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
+
 	if res.ms == nil {
 		return
 	}
 
 	chanStop := make(chan struct{}, 0)
 	go func() {
+		res.cache.WriteToNewCache(f.blockCache)
 		for k, v := range res.writeList {
-			f.cc.update(k, v, txIndex)
+			f.cc.items[k] = A{
+				value:   v,
+				txIndex: txIndex,
+			}
 		}
 		chanStop <- struct{}{}
 	}()
 
 	f.mu.Lock()
+
 	res.ms.IteratorCache(func(key, value []byte, isDirty bool, isdelete bool, storeKey sdk.StoreKey) bool {
 		if isDirty {
+			if storeKey.Name() == "acc" {
+				fmt.Println("---setAcc---", hex.EncodeToString(key), string(key), isDirty, isdelete, hex.EncodeToString(value))
+			}
+
+			if storeKey.Name() == "evm" {
+				fmt.Println("---setEVM---", hex.EncodeToString(key), isDirty, isdelete)
+			}
+
+			fmt.Println("SetCurrent--Ms", hex.EncodeToString(key), isDirty, isdelete)
 
 			if isdelete {
 				f.cms.GetKVStore(storeKey).Delete(key)
@@ -739,6 +810,7 @@ func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
 	f.currIndex = txIndex
 	f.mu.Unlock()
 	<-chanStop
+	fmt.Println("SetIndex", txIndex)
 }
 
 var (
