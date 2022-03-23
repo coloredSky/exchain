@@ -84,6 +84,8 @@ type CListMempool struct {
 
 	addressRecord *AddressRecord
 
+	txHashKeys *TxHashKeys
+
 	pendingPool       *PendingPool
 	accountRetriever  AccountRetriever
 	pendingPoolNotify chan map[string]uint64
@@ -614,6 +616,9 @@ func (mem *CListMempool) resCbFirstTime(
 				return
 			}
 
+			txHash := r.CheckTx.Tx.TxHash()
+			fmt.Printf("giskook---txhash %v", txHash)
+
 			memTx := &mempoolTx{
 				height:      mem.height,
 				gasWanted:   r.CheckTx.GasWanted,
@@ -624,7 +629,6 @@ func (mem *CListMempool) resCbFirstTime(
 				from:        r.CheckTx.Tx.GetFrom(),
 				senderNonce: r.CheckTx.SenderNonce,
 				ethAddr:     txInfo.ktx.GetEthAddr(),
-				keys:        txInfo.ktx.Keys,
 			}
 
 			memTx.senders.Store(txInfo.SenderID, true)

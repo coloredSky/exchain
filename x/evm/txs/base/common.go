@@ -1,6 +1,7 @@
 package base
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -26,6 +27,7 @@ func msg2st(ctx *sdk.Context, k *Keeper, msg *types.MsgEthereumTx) (st types.Sta
 
 	txHash := tmtypes.Tx(ctx.TxBytes()).Hash(ctx.BlockHeight())
 	ethHash := common.BytesToHash(txHash)
+	fmt.Printf("giskook msg2st ---txhash %v", txHash)
 
 	st = types.StateTransition{
 		AccountNonce: msg.Data.AccountNonce,
