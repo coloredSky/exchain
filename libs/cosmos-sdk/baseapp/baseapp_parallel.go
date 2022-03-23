@@ -3,9 +3,6 @@ package baseapp
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/hex"
-	"fmt"
-
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/okex/exchain/libs/cosmos-sdk/store/prefix"
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
@@ -639,21 +636,16 @@ func (pm *parallelTxManager) newIsConflict(e *executeResult) bool {
 		return true
 	}
 	if len(e.iavlWriteList) != 0 {
-		fmt.Println("conflict-iavl-dirt")
 		return true
 	}
 
 	for k, v := range e.readList {
 
 		if dirtyIndex, ok := pm.cc.items[k]; ok {
-			//fmt.Println("conflict", k, "readValue", hex.EncodeToString(v), "dirtyValue", hex.EncodeToString(dirtyIndex.value), "dirty", dirtyIndex.txIndex)
 			if !bytes.Equal(dirtyIndex.value, v) {
-				fmt.Println("conflict-1", k, "readValue", hex.EncodeToString(v), "dirtyValue", hex.EncodeToString(dirtyIndex.value), "dirty", dirtyIndex.txIndex)
-
 				return true
 			} else {
 				if base < dirtyIndex.txIndex && pm.txIndexWithGroupID[dirtyIndex.txIndex] != pm.txIndexWithGroupID[int(e.counter)] {
-					fmt.Println("conflict-2", k, "readValue", hex.EncodeToString(v), "base", base, "dirty", dirtyIndex.txIndex, "txIndex", e.counter)
 					return true
 				}
 			}
@@ -735,6 +727,7 @@ func (f *parallelTxManager) getTxResult(tx []byte) (sdk.CacheMultiStore, *sdk.Ca
 	if ok && preIndexInGroup > f.currIndex {
 		if f.txReps[preIndexInGroup].anteErr == nil {
 			ms = f.txReps[preIndexInGroup].ms.CacheMultiStore()
+			cc = f.txReps[preIndexInGroup].cache
 		} else {
 			ms = f.cms.CacheMultiStore()
 		}
@@ -780,16 +773,6 @@ func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
 
 	res.ms.IteratorCache(func(key, value []byte, isDirty bool, isdelete bool, storeKey sdk.StoreKey) bool {
 		if isDirty {
-			if storeKey.Name() == "acc" {
-				fmt.Println("---setAcc---", hex.EncodeToString(key), string(key), isDirty, isdelete, hex.EncodeToString(value))
-			}
-
-			if storeKey.Name() == "evm" {
-				fmt.Println("---setEVM---", hex.EncodeToString(key), isDirty, isdelete)
-			}
-
-			fmt.Println("SetCurrent--Ms", hex.EncodeToString(key), isDirty, isdelete)
-
 			if isdelete {
 				f.cms.GetKVStore(storeKey).Delete(key)
 			} else if value != nil {
@@ -801,7 +784,6 @@ func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
 	f.currIndex = txIndex
 	f.mu.Unlock()
 	<-chanStop
-	fmt.Println("SetIndex", txIndex)
 }
 
 type paraInfo struct {
