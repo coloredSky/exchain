@@ -55,6 +55,17 @@ func replayCmd(ctx *server.Context, registerAppFlagFn func(cmd *cobra.Command)) 
 			// set external package flags
 			server.SetExternalPackageValue(cmd)
 			types.InitSignatureCache()
+			if sdk.FileExist() {
+				sdk.KeyTxCollectMode = false
+				err := sdk.DecodeToMap()
+				if err != nil {
+					panic(err)
+				}
+			} else {
+				sdk.KeyTxCollectMode = true
+			}
+			sdk.ReplayStart = time.Now().UnixNano()
+
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
@@ -72,6 +83,14 @@ func replayCmd(ctx *server.Context, registerAppFlagFn func(cmd *cobra.Command)) 
 			log.Println("--------- replay success ---------")
 		},
 		PostRun: func(cmd *cobra.Command, args []string) {
+			sdk.ReplayStop = time.Now().UnixNano()
+			log.Printf("------- replay costs: %v \n", sdk.ReplayStop-sdk.ReplayStart)
+			if sdk.KeyTxCollectMode {
+				err := sdk.EncodeToFile()
+				if err != nil {
+					log.Printf("------ err %v \n", err)
+				}
+			}
 			if viper.GetBool(runWithPprofMemFlag) {
 				log.Println("--------- gen pprof mem start ---------")
 				err := dumpMemPprof()

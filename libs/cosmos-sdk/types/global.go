@@ -3,20 +3,35 @@ package types
 import (
 	"bytes"
 	"encoding/gob"
+	"errors"
 	ethcmn "github.com/ethereum/go-ethereum/common"
 	"log"
 	"os"
 )
 
-type AddrKeys struct {
-	Addr ethcmn.Address
-	Keys []ethcmn.Hash
+var (
+	StatisticsMap    = make(map[ethcmn.Hash]map[ethcmn.Address][]ethcmn.Hash)
+	FileName         = "./txhash"
+	KeyTxCollectMode = false // true for collect tx
+	ReplayStart      int64
+	ReplayStop       int64
+	Call             bool
+	CurTxHash        ethcmn.Hash
+)
+
+func AddMapTxHash(txHash ethcmn.Hash) {
+	if _, ok := StatisticsMap[txHash]; !ok {
+		StatisticsMap[txHash] = make(map[ethcmn.Address][]ethcmn.Hash)
+	}
 }
 
-var (
-	StatisticsMap = make(map[string]AddrKeys)
-	FileName      = "./txhash"
-)
+func AddMapAddrKey(addr ethcmn.Address, key ethcmn.Hash) {
+	if _, ok := StatisticsMap[CurTxHash]; ok {
+		StatisticsMap[CurTxHash][addr] = append(StatisticsMap[CurTxHash][addr], key)
+	} else {
+		log.Printf("not found txhash something went wrong...... %v %v %v\n", CurTxHash, addr, key)
+	}
+}
 
 func EncodeToFile() error {
 	f, err := os.OpenFile(FileName, os.O_RDWR|os.O_CREATE, 0666)
@@ -48,4 +63,16 @@ func DecodeToMap() error {
 
 	// Decoding the serialized data
 	return d.Decode(&StatisticsMap)
+}
+
+func FileExist() bool {
+	if _, err := os.Stat(FileName); err == nil {
+		return true
+	} else if errors.Is(err, os.ErrNotExist) {
+		return false
+	} else {
+		panic(err)
+
+	}
+	return false
 }
