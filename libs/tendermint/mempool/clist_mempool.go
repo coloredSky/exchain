@@ -616,7 +616,7 @@ func (mem *CListMempool) resCbFirstTime(
 				return
 			}
 
-			//			txHash := r.CheckTx.Tx.TxHash()
+			// txHash := r.CheckTx.Tx.TxHash()
 
 			memTx := &mempoolTx{
 				height:      mem.height,
