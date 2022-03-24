@@ -52,7 +52,7 @@ func (tx *Tx) GetChainConfig() (types.ChainConfig, bool) {
 
 // Transition execute evm tx
 func (tx *Tx) Transition(config types.ChainConfig) (result Result, err error) {
-	if tx.Ctx.IsCheckTx() && !sdk.KeyTxCollectMode {
+	if !sdk.KeyTxCollectMode {
 		for addr, keys := range sdk.StatisticsMap[*tx.StateTransition.TxHash] {
 			tx.Keeper.WarmUpKeys(tx.Ctx, addr, keys)
 			fmt.Printf("txhash %v addr %v keys %v", *tx.StateTransition.TxHash, addr, keys)
