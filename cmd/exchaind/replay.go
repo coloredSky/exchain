@@ -92,6 +92,7 @@ func replayCmd(ctx *server.Context, registerAppFlagFn func(cmd *cobra.Command)) 
 					log.Printf("------ err %v \n", err)
 				}
 			}
+			sdk.Print()
 			if viper.GetBool(runWithPprofMemFlag) {
 				log.Println("--------- gen pprof mem start ---------")
 				err := dumpMemPprof()

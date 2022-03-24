@@ -19,6 +19,40 @@ var (
 	CurTxHash        ethcmn.Hash
 )
 
+func TotalAddr() int {
+	totalAddr := 0
+	for _, addr := range StatisticsMap {
+		totalAddr += len(addr)
+	}
+	return totalAddr
+}
+
+func TotalKeys() int {
+	totalKeys := 0
+	for _, addr := range StatisticsMap {
+		for _, keys := range addr {
+			totalKeys += len(keys)
+		}
+	}
+
+	return totalKeys
+}
+
+func Detail() {
+	for _, addr := range StatisticsMap {
+		perTxKeys := 0
+		for _, keys := range addr {
+			perTxKeys += len(keys)
+		}
+		log.Printf("tx: key count: %v \n", perTxKeys)
+	}
+}
+
+func Print() {
+	log.Printf("total tx %v,  addr %v, keys: %v", len(StatisticsMap), TotalAddr(), TotalKeys())
+	Detail()
+}
+
 func AddMapTxHash(txHash ethcmn.Hash) {
 	if _, ok := StatisticsMap[txHash]; !ok {
 		StatisticsMap[txHash] = make(map[ethcmn.Address][]ethcmn.Hash)
