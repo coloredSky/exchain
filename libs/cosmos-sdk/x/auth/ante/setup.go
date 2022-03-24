@@ -2,8 +2,6 @@ package ante
 
 import (
 	"fmt"
-	"log"
-
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
 	sdkerrors "github.com/okex/exchain/libs/cosmos-sdk/types/errors"
 )
@@ -20,7 +18,6 @@ func NewSetUpContextDecorator() SetUpContextDecorator {
 }
 
 func (sud SetUpContextDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simulate bool, next sdk.AnteHandler) (newCtx sdk.Context, err error) {
-	log.Println("----***** ante.giskook here ----")
 	// all transactions must implement GasTx
 	gasTx := tx
 

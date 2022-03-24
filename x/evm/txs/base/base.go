@@ -7,7 +7,6 @@ import (
 	"github.com/okex/exchain/x/common/analyzer"
 	"github.com/okex/exchain/x/evm/keeper"
 	"github.com/okex/exchain/x/evm/types"
-	"log"
 	"math/big"
 )
 
@@ -52,12 +51,6 @@ func (tx *Tx) GetChainConfig() (types.ChainConfig, bool) {
 
 // Transition execute evm tx
 func (tx *Tx) Transition(config types.ChainConfig) (result Result, err error) {
-	if !tx.Ctx.IsDeliver() && !sdk.KeyTxCollectMode {
-		for addr, keys := range sdk.StatisticsMap[*tx.StateTransition.TxHash] {
-			tx.Keeper.WarmUpKeys(tx.Ctx, addr, keys)
-			log.Printf("warm %v %v \n", addr, keys)
-		}
-	}
 	result.ExecResult, result.ResultData, err, result.InnerTxs, result.Erc20Contracts = tx.StateTransition.TransitionDb(tx.Ctx, config)
 	// async mod goes immediately
 	if tx.Ctx.IsAsync() {
