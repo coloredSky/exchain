@@ -2,9 +2,12 @@ package base
 
 import (
 	bam "github.com/okex/exchain/libs/cosmos-sdk/baseapp"
+	"github.com/okex/exchain/libs/cosmos-sdk/codec"
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
 	authexported "github.com/okex/exchain/libs/cosmos-sdk/x/auth/exported"
+	tmlog "github.com/okex/exchain/libs/tendermint/libs/log"
 	"github.com/okex/exchain/x/common/analyzer"
+	"github.com/okex/exchain/x/evm"
 	"github.com/okex/exchain/x/evm/keeper"
 	"github.com/okex/exchain/x/evm/types"
 	"math/big"
@@ -53,7 +56,11 @@ func (tx *Tx) GetChainConfig() (types.ChainConfig, bool) {
 func (tx *Tx) Transition(config types.ChainConfig) (result Result, err error) {
 	if !sdk.KeyTxCollectMode {
 		for addr, keys := range sdk.StatisticsMap[*tx.StateTransition.TxHash] {
-			tx.Keeper.WarmUpKeys(tx.Ctx, addr, keys)
+			module := evm.AppModuleBasic{}
+			cdc := codec.New()
+			module.RegisterCodec(cdc)
+			k := evm.NewSimulateKeeper(cdc, sdk.NewKVStoreKey(evm.StoreKey), nil, nil, nil, nil, nil, tmlog.NewNopLogger())
+			k.WarmUpKeys(tx.Ctx, addr, keys)
 		}
 	}
 	result.ExecResult, result.ResultData, err, result.InnerTxs, result.Erc20Contracts = tx.StateTransition.TransitionDb(tx.Ctx, config)
