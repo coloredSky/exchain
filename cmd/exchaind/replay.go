@@ -55,6 +55,11 @@ func replayCmd(ctx *server.Context, registerAppFlagFn func(cmd *cobra.Command)) 
 			// set external package flags
 			server.SetExternalPackageValue(cmd)
 			types.InitSignatureCache()
+
+			return nil
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			log.Println("--------- replay start ---------")
 			if sdk.FileExist() {
 				sdk.KeyTxCollectMode = false
 				err := sdk.DecodeToMap()
@@ -66,11 +71,6 @@ func replayCmd(ctx *server.Context, registerAppFlagFn func(cmd *cobra.Command)) 
 				sdk.KeyTxCollectMode = true
 			}
 			sdk.ReplayStart = time.Now().UnixNano()
-
-			return nil
-		},
-		Run: func(cmd *cobra.Command, args []string) {
-			log.Println("--------- replay start ---------")
 			pprofAddress := viper.GetString(pprofAddrFlag)
 			go func() {
 				err := http.ListenAndServe(pprofAddress, nil)
