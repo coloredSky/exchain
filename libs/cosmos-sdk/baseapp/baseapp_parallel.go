@@ -384,7 +384,7 @@ func (app *BaseApp) runTxs(txs [][]byte, groupList map[int][]int, nextTxInGroup 
 	<-stopChan
 
 	pm.cms.Write()
-	pm.blockCache.Write(true, false)
+	pm.blockCache.Write(true)
 
 	return deliverTxs
 }
