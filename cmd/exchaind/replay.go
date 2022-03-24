@@ -58,6 +58,7 @@ func replayCmd(ctx *server.Context, registerAppFlagFn func(cmd *cobra.Command)) 
 			if sdk.FileExist() {
 				sdk.KeyTxCollectMode = false
 				err := sdk.DecodeToMap()
+				log.Printf("load file complete total %v \n", len(sdk.StatisticsMap))
 				if err != nil {
 					panic(err)
 				}
