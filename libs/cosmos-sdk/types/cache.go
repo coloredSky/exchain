@@ -322,18 +322,9 @@ func (c *Cache) Write(updateDirty bool, printLog bool) {
 		return
 	}
 
-	c.writeStorage(c.parent, updateDirty)
-	c.writeAcc(c.parent, updateDirty)
-	c.writeCode(c.parent, updateDirty)
-
-	c.dirtyStorageMap = make(map[string]*storageWithCache)
-	c.readStorageMap = make(map[string][]byte)
-
-	c.dirtyaccMap = make(map[ethcmn.Address]*accountWithCache)
-	c.readaccMap = make(map[ethcmn.Address]*accountWithCache)
-
-	c.dirtycodeMap = make(map[ethcmn.Hash]*codeWithCache)
-	c.readcodeMap = make(map[ethcmn.Hash][]byte)
+	c.writeStorage(c.parent, updateDirty, true)
+	c.writeAcc(c.parent, updateDirty, true)
+	c.writeCode(c.parent, updateDirty, true)
 }
 
 type ReadList struct {
@@ -410,34 +401,36 @@ func (c *Cache) WriteToNewCache(newCache *Cache) {
 	newCache.mu.Lock()
 	defer newCache.mu.Unlock()
 
-	c.writeStorage(newCache, true)
-	c.writeAcc(newCache, true)
-	c.writeCode(newCache, true)
+	c.writeStorage(newCache, true, false)
+	c.writeAcc(newCache, true, false)
+	c.writeCode(newCache, true, false)
 }
 
-func (c *Cache) writeStorage(parent *Cache, updateDirty bool) []string {
-	tt := make([]string, 0)
+func (c *Cache) writeStorage(parent *Cache, updateDirty bool, reSet bool) {
 	for sKey, v := range c.dirtyStorageMap {
 		if updateDirty {
 			parent.dirtyStorageMap[sKey] = v
-			tt = append(tt, sKey)
+		}
+		if reSet {
+			delete(c.dirtyStorageMap, sKey)
 		}
 	}
 
 	for sKey, v := range c.readStorageMap {
 		parent.readStorageMap[sKey] = v
-
+		if reSet {
+			delete(c.readStorageMap, sKey)
+		}
 	}
-
-	return tt
 }
 
-func (c *Cache) writeAcc(parent *Cache, updateDirty bool) []string {
-	tt := make([]string, 0)
+func (c *Cache) writeAcc(parent *Cache, updateDirty bool, reSet bool) {
 	for addr, v := range c.dirtyaccMap {
 		if updateDirty {
 			parent.dirtyaccMap[addr] = v
-			tt = append(tt, addr.String())
+		}
+		if reSet {
+			delete(c.dirtyaccMap, addr)
 		}
 	}
 
@@ -447,17 +440,21 @@ func (c *Cache) writeAcc(parent *Cache, updateDirty bool) []string {
 				parent.readaccMap[addr] = v
 			}
 		}
+		if reSet {
+			delete(c.readaccMap, addr)
+		}
 	}
-	return tt
 }
 
-func (c *Cache) writeCode(parent *Cache, updateDirty bool) []string {
-	tt := make([]string, 0)
+func (c *Cache) writeCode(parent *Cache, updateDirty bool, reset bool) {
 	for hash, v := range c.dirtycodeMap {
 		if updateDirty {
 			parent.dirtycodeMap[hash] = v
-			tt = append(tt, hash.String())
 		}
+		if reset {
+			delete(c.dirtycodeMap, hash)
+		}
+
 	}
 	for hash, v := range c.readcodeMap {
 		if updateDirty {
@@ -465,8 +462,11 @@ func (c *Cache) writeCode(parent *Cache, updateDirty bool) []string {
 				parent.readcodeMap[hash] = v
 			}
 		}
+		if reset {
+			delete(c.readcodeMap, hash)
+		}
+
 	}
-	return tt
 }
 
 //func (c *Cache) IsConflict(reaadList []map[string][]byte, whiteAddr ethcmn.Address) bool {
