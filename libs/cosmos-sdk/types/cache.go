@@ -322,9 +322,18 @@ func (c *Cache) Write(updateDirty bool, printLog bool) {
 		return
 	}
 
-	c.writeStorage(c.parent, updateDirty, false)
+	c.writeStorage(c.parent, updateDirty)
 	c.writeAcc(c.parent, updateDirty)
 	c.writeCode(c.parent, updateDirty)
+
+	c.dirtyStorageMap = make(map[string]*storageWithCache)
+	c.readStorageMap = make(map[string][]byte)
+
+	c.dirtyaccMap = make(map[ethcmn.Address]*accountWithCache)
+	c.readaccMap = make(map[ethcmn.Address]*accountWithCache)
+
+	c.dirtycodeMap = make(map[ethcmn.Hash]*codeWithCache)
+	c.readcodeMap = make(map[ethcmn.Hash][]byte)
 }
 
 type ReadList struct {
@@ -391,9 +400,9 @@ func (c *Cache) CopyRead(cc uint32) *ReadList {
 	return s
 }
 
-func (c *Cache) WriteToNewCache(newCache *Cache) []string {
+func (c *Cache) WriteToNewCache(newCache *Cache) {
 	if c.skip() {
-		return nil
+		return
 	}
 
 	c.mu.Lock()
@@ -401,14 +410,12 @@ func (c *Cache) WriteToNewCache(newCache *Cache) []string {
 	newCache.mu.Lock()
 	defer newCache.mu.Unlock()
 
-	ans := make([]string, 0)
-	ans = append(ans, c.writeStorage(newCache, true, true)...)
-	ans = append(ans, c.writeAcc(newCache, true)...)
-	ans = append(ans, c.writeCode(newCache, true)...)
-	return ans
+	c.writeStorage(newCache, true)
+	c.writeAcc(newCache, true)
+	c.writeCode(newCache, true)
 }
 
-func (c *Cache) writeStorage(parent *Cache, updateDirty bool, printLog bool) []string {
+func (c *Cache) writeStorage(parent *Cache, updateDirty bool) []string {
 	tt := make([]string, 0)
 	for sKey, v := range c.dirtyStorageMap {
 		if updateDirty {
@@ -422,8 +429,6 @@ func (c *Cache) writeStorage(parent *Cache, updateDirty bool, printLog bool) []s
 
 	}
 
-	c.dirtyStorageMap = make(map[string]*storageWithCache)
-	c.readStorageMap = make(map[string][]byte)
 	return tt
 }
 
@@ -443,8 +448,6 @@ func (c *Cache) writeAcc(parent *Cache, updateDirty bool) []string {
 			}
 		}
 	}
-	c.dirtyaccMap = make(map[ethcmn.Address]*accountWithCache)
-	c.readaccMap = make(map[ethcmn.Address]*accountWithCache)
 	return tt
 }
 
@@ -463,8 +466,6 @@ func (c *Cache) writeCode(parent *Cache, updateDirty bool) []string {
 			}
 		}
 	}
-	c.dirtycodeMap = make(map[ethcmn.Hash]*codeWithCache)
-	c.readcodeMap = make(map[ethcmn.Hash][]byte)
 	return tt
 }
 
