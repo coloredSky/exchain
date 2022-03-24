@@ -554,6 +554,9 @@ func (c *Cache) writeCode(parent *Cache, updateDirty bool, reset bool) {
 //}
 
 func (c *Cache) GetParent() *Cache {
+	if c == nil {
+		return nil
+	}
 	return c.parent
 }
 
