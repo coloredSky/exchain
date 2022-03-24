@@ -96,13 +96,11 @@ func (store *Store) IteratorCache(cb func(key, value []byte, isDirty bool, isDel
 }
 
 func (store *Store) GetRWSet(rSet map[string][]byte, wSet map[string][]byte) {
-	for k, v := range store.readList {
-		rSet[k] = v
-	}
+	//for k, v := range store.readList {
+	//	rSet[k] = v
+	//}
 	for k, v := range store.dirty {
-		if !bytes.Equal(v.value, rSet[k]) {
-			wSet[k] = v.value
-		}
+		wSet[k] = v.value
 	}
 }
 

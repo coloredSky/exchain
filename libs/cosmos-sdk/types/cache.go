@@ -162,6 +162,7 @@ func (c *Cache) UpdateStorage(addr ethcmn.Address, key ethcmn.Hash, value []byte
 			Dirty:  isDirty,
 			Delete: isDelete,
 		}
+
 	} else {
 		c.setReadStorage(sKey, value)
 	}
@@ -337,58 +338,46 @@ func (c *Cache) GetRWSet() (map[string][]byte, map[string][]byte) {
 	rSet := make(map[string][]byte, 0)
 	wSet := make(map[string][]byte, 0)
 
-	for k, v := range c.readaccMap {
-		rSet[k.String()] = v.Bz
-	}
-	for k, v := range c.readStorageMap {
-		rSet[k] = v
-	}
-	for k, v := range c.readcodeMap {
-		rSet[k.String()] = v
-	}
-
-	for k, v := range c.dirtyaccMap {
-		if !bytes.Equal(v.Bz, c.readaccMap[k].Bz) {
-			wSet[k.String()] = v.Bz
+	stopChan := make(chan struct{}, 0)
+	go func() {
+		for k, v := range c.readaccMap {
+			rSet[k.String()] = v.Bz
 		}
-	}
-
-	for k, v := range c.dirtyStorageMap {
-		if !bytes.Equal(v.Value, c.readStorageMap[k]) {
-			wSet[k] = v.Value
+		for k, v := range c.readStorageMap {
+			rSet[k] = v
 		}
-	}
-
-	for k, v := range c.dirtycodeMap {
-		if !bytes.Equal(v.Code, c.readcodeMap[k]) {
-			wSet[k.String()] = v.Code
+		for k, v := range c.readcodeMap {
+			rSet[k.String()] = v
 		}
-	}
+		stopChan <- struct{}{}
+	}()
 
+	go func() {
+		for k, v := range c.dirtyaccMap {
+			if !bytes.Equal(c.readaccMap[k].Bz, v.Bz) {
+				wSet[k.String()] = v.Bz
+			}
+		}
+
+		for k, v := range c.dirtyStorageMap {
+			if !bytes.Equal(c.readStorageMap[k], v.Value) {
+				wSet[k] = v.Value
+			}
+		}
+
+		for k, v := range c.dirtycodeMap {
+			if !bytes.Equal(c.readcodeMap[k], v.Code) {
+				wSet[k.String()] = v.Code
+			}
+		}
+
+		stopChan <- struct{}{}
+	}()
+
+	<-stopChan
+	<-stopChan
 	return rSet, wSet
 
-}
-
-func (c *Cache) CopyRead(cc uint32) *ReadList {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	s := &ReadList{
-		Account: make(map[ethcmn.Address][]byte),
-		Storage: make(map[string][]byte),
-		Code:    make(map[ethcmn.Hash][]byte),
-	}
-	for addr, v := range c.readaccMap {
-		s.Account[addr] = v.Bz
-	}
-	for addr, v := range c.readStorageMap {
-		s.Storage[addr] = v
-
-	}
-	for hash, code := range c.readcodeMap {
-		s.Code[hash] = code
-	}
-	return s
 }
 
 func (c *Cache) WriteToNewCache(newCache *Cache) {
