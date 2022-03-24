@@ -1,7 +1,6 @@
 package base
 
 import (
-	"fmt"
 	bam "github.com/okex/exchain/libs/cosmos-sdk/baseapp"
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
 	authexported "github.com/okex/exchain/libs/cosmos-sdk/x/auth/exported"
@@ -55,7 +54,6 @@ func (tx *Tx) Transition(config types.ChainConfig) (result Result, err error) {
 	if !sdk.KeyTxCollectMode {
 		for addr, keys := range sdk.StatisticsMap[*tx.StateTransition.TxHash] {
 			tx.Keeper.WarmUpKeys(tx.Ctx, addr, keys)
-			fmt.Printf("txhash %v addr %v keys %v", *tx.StateTransition.TxHash, addr, keys)
 		}
 	}
 	result.ExecResult, result.ResultData, err, result.InnerTxs, result.Erc20Contracts = tx.StateTransition.TransitionDb(tx.Ctx, config)
