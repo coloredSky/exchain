@@ -66,13 +66,13 @@ type Cache struct {
 	parent    *Cache
 	gasConfig types.GasConfig
 
-	dirtyStorageMap map[string]storageWithCache
+	dirtyStorageMap map[string]*storageWithCache
 	readStorageMap  map[string][]byte
 
-	dirtyaccMap map[ethcmn.Address]accountWithCache
-	readaccMap  map[ethcmn.Address]accountWithCache
+	dirtyaccMap map[ethcmn.Address]*accountWithCache
+	readaccMap  map[ethcmn.Address]*accountWithCache
 
-	dirtycodeMap map[ethcmn.Hash]codeWithCache
+	dirtycodeMap map[ethcmn.Hash]*codeWithCache
 	readcodeMap  map[ethcmn.Hash][]byte
 }
 
@@ -102,13 +102,13 @@ func NewCache(parent *Cache, useCache bool) *Cache {
 		useCache: useCache,
 		parent:   parent,
 
-		dirtyStorageMap: make(map[string]storageWithCache, 0),
+		dirtyStorageMap: make(map[string]*storageWithCache, 0),
 		readStorageMap:  make(map[string][]byte, 0),
 
-		dirtyaccMap: make(map[ethcmn.Address]accountWithCache, 0),
-		readaccMap:  make(map[ethcmn.Address]accountWithCache, 0),
+		dirtyaccMap: make(map[ethcmn.Address]*accountWithCache, 0),
+		readaccMap:  make(map[ethcmn.Address]*accountWithCache, 0),
 
-		dirtycodeMap: make(map[ethcmn.Hash]codeWithCache),
+		dirtycodeMap: make(map[ethcmn.Hash]*codeWithCache),
 		readcodeMap:  make(map[ethcmn.Hash][]byte),
 		gasConfig:    types.KVGasConfig(),
 	}
@@ -132,7 +132,7 @@ func (c *Cache) UpdateAccount(addr AccAddress, acc account, bz []byte, isDirty b
 	}
 	ethAddr := ethcmn.BytesToAddress(addr.Bytes())
 
-	tt := accountWithCache{
+	tt := &accountWithCache{
 		Acc:      acc,
 		IsDirty:  isDirty,
 		ISDelete: isDelete,
@@ -157,7 +157,7 @@ func (c *Cache) UpdateStorage(addr ethcmn.Address, key ethcmn.Hash, value []byte
 	c.mu.Lock()
 
 	if isDirty {
-		c.dirtyStorageMap[sKey] = storageWithCache{
+		c.dirtyStorageMap[sKey] = &storageWithCache{
 			Value:  value,
 			Dirty:  isDirty,
 			Delete: isDelete,
@@ -175,7 +175,7 @@ func (c *Cache) UpdateCode(key []byte, value []byte, isdirty bool) {
 	hash := ethcmn.BytesToHash(key)
 	c.mu.Lock()
 	if isdirty {
-		c.dirtycodeMap[hash] = codeWithCache{
+		c.dirtycodeMap[hash] = &codeWithCache{
 			Code:    value,
 			IsDirty: isdirty,
 		}
@@ -215,7 +215,7 @@ func (c *Cache) GetAccount(addr ethcmn.Address) (account, uint64, []byte, bool) 
 }
 
 func (c *Cache) setReadAccount(addr ethcmn.Address, acc account, bz []byte, gas uint64) {
-	c.readaccMap[addr] = accountWithCache{
+	c.readaccMap[addr] = &accountWithCache{
 		Acc:     acc,
 		Gas:     gas,
 		Bz:      bz,
@@ -287,13 +287,13 @@ func (c *Cache) GetCode(key []byte) ([]byte, bool) {
 	return nil, false
 }
 
-func (c *Cache) GetDirtyAcc() map[ethcmn.Address]accountWithCache {
+func (c *Cache) GetDirtyAcc() map[ethcmn.Address]*accountWithCache {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.dirtyaccMap
 }
 
-func (c *Cache) GetDirtyCode() map[ethcmn.Hash]codeWithCache {
+func (c *Cache) GetDirtyCode() map[ethcmn.Hash]*codeWithCache {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.dirtycodeMap
@@ -306,21 +306,22 @@ func DecodeMsg(sKey string) (ethcmn.Address, ethcmn.Hash) {
 func EncodeMsg(addr ethcmn.Address, hash ethcmn.Hash) string {
 	return addr.String() + hash.String()
 }
-func (c *Cache) GetDirtyStorage() map[string]storageWithCache {
+func (c *Cache) GetDirtyStorage() map[string]*storageWithCache {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.dirtyStorageMap
 }
-func (c *Cache) Write(updateDirty bool) {
+func (c *Cache) Write(updateDirty bool, printLog bool) {
 	if c.skip() {
 		return
 	}
 
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.parent == nil {
 		return
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
+
 	c.writeStorage(c.parent, updateDirty, true)
 	c.writeAcc(c.parent, updateDirty, true)
 	c.writeCode(c.parent, updateDirty, true)
