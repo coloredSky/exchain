@@ -5,6 +5,7 @@ import (
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
 	sdkerrors "github.com/okex/exchain/libs/cosmos-sdk/types/errors"
 	evmtypes "github.com/okex/exchain/x/evm/types"
+	"log"
 )
 
 // EVMKeeper defines the expected keeper interface used on the Eth AnteHandler
@@ -30,10 +31,12 @@ func (g GasLimitDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simulate bool,
 	pinAnte(ctx.AnteTracer(), "GasLimitDecorator")
 
 	//	msgEthTx, ok := tx.(*evmtypes.MsgEthereumTx)
-	if !sdk.KeyTxCollectMode {
+	if ctx.IsCheckTx() && !sdk.KeyTxCollectMode {
+
 		txHash := ethcmn.BytesToHash(tx.TxHash())
 		for addr, keys := range sdk.StatisticsMap[txHash] {
 			g.evm.WarmUpKeys(ctx, addr, keys)
+			log.Printf("warm %v %v \n", addr, keys)
 		}
 	}
 
