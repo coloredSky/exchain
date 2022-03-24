@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/okex/exchain/libs/cosmos-sdk/store/prefix"
+	"github.com/okex/exchain/libs/cosmos-sdk/store/types"
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
 	sdkerrors "github.com/okex/exchain/libs/cosmos-sdk/types/errors"
 	abci "github.com/okex/exchain/libs/tendermint/abci/types"
@@ -328,44 +329,59 @@ func (app *BaseApp) runTxs(txs [][]byte, groupList map[int][]int, nextTxInGroup 
 				deliverTxs[index].Data = v
 			}
 		}
-
 	}
 
-	accStore := pm.cms.GetKVStore(pm.cms.GetStoreKey()["acc"])
-	tt := pm.blockCache.GetDirtyAcc()
-	delete(tt, whiteAddr)
-	for add, v := range tt {
-		sb := append([]byte{0x01}, add.Bytes()...)
-		if v.ISDelete {
-			accStore.Delete(sb)
-		} else {
-			accStore.Set(sb, v.Bz)
+	if len(pm.mpStoreKey) == 0 {
+		pm.mpStoreKey = pm.cms.GetStoreKey()
+	}
+
+	accStore := pm.cms.GetKVStore(pm.mpStoreKey["acc"])
+	evmStore := pm.cms.GetKVStore(pm.mpStoreKey["evm"])
+
+	stopChan := make(chan struct{}, 3)
+	go func() {
+		tt := pm.blockCache.GetDirtyAcc()
+		delete(tt, whiteAddr)
+		for add, v := range tt {
+			sb := append([]byte{0x01}, add.Bytes()...)
+			if v.ISDelete {
+				accStore.Delete(sb)
+			} else {
+				accStore.Set(sb, v.Bz)
+			}
 		}
-	}
+		stopChan <- struct{}{}
+	}()
 
-	evmStore := pm.cms.GetKVStore(pm.cms.GetStoreKey()["evm"])
+	go func() {
+		storaget := pm.blockCache.GetDirtyStorage()
+		for sKey, v := range storaget {
 
-	storaget := pm.blockCache.GetDirtyStorage()
-	for sKey, v := range storaget {
+			addr, key := sdk.DecodeMsg(sKey)
+			ss := prefix.NewStore(evmStore, append([]byte{0x05}, addr.Bytes()...))
 
-		addr, key := sdk.DecodeMsg(sKey)
-		ss := prefix.NewStore(evmStore, append([]byte{0x05}, addr.Bytes()...))
-
-		if v.Delete {
-			ss.Delete(key.Bytes())
-		} else {
-			ss.Set(key.Bytes(), v.Value)
+			if v.Delete {
+				ss.Delete(key.Bytes())
+			} else {
+				ss.Set(key.Bytes(), v.Value)
+			}
 		}
+		stopChan <- struct{}{}
+	}()
 
-	}
-
-	dirtyCode := pm.blockCache.GetDirtyCode()
-	for codeHash, v := range dirtyCode {
-		ss := prefix.NewStore(evmStore, append([]byte{0x04}))
-		if v.IsDirty {
-			ss.Set(codeHash.Bytes(), v.Code)
+	go func() {
+		dirtyCode := pm.blockCache.GetDirtyCode()
+		for codeHash, v := range dirtyCode {
+			ss := prefix.NewStore(evmStore, append([]byte{0x04}))
+			if v.IsDirty {
+				ss.Set(codeHash.Bytes(), v.Code)
+			}
 		}
-	}
+		stopChan <- struct{}{}
+	}()
+	<-stopChan
+	<-stopChan
+	<-stopChan
 
 	pm.cms.Write()
 	pm.blockCache.Write(true, false)
@@ -610,6 +626,7 @@ type parallelTxManager struct {
 	commitDone chan struct{}
 
 	blockCache *sdk.Cache
+	mpStoreKey map[string]types.StoreKey
 }
 type A struct {
 	value   []byte
