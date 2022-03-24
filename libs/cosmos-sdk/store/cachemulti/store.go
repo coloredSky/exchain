@@ -136,6 +136,14 @@ func (cms Store) Write() {
 	}
 }
 
+var (
+	whiteMap = map[string]bool{
+		"params": true,
+		"evm":    true,
+		"acc":    true,
+	}
+)
+
 func (cms Store) GetStoreKey() map[string]types.StoreKey {
 	ans := make(map[string]types.StoreKey)
 	for k, _ := range cms.stores {

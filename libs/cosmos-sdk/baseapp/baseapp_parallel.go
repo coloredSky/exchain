@@ -774,12 +774,9 @@ func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
 		return
 	}
 
-	chanStop := make(chan struct{}, 2)
+	chanStop := make(chan struct{}, 0)
 	go func() {
 		res.cache.WriteToNewCache(f.blockCache)
-		chanStop <- struct{}{}
-	}()
-	go func() {
 		for k, v := range res.writeList {
 			f.cc.items[k] = A{
 				value:   v,
@@ -803,7 +800,6 @@ func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
 	}, nil)
 	f.currIndex = txIndex
 	f.mu.Unlock()
-	<-chanStop
 	<-chanStop
 }
 
