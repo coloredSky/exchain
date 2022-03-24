@@ -4,6 +4,7 @@ import (
 	"fmt"
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
 	sdkerrors "github.com/okex/exchain/libs/cosmos-sdk/types/errors"
+	"log"
 )
 
 // EthSetupContextDecorator sets the infinite GasMeter in the Context and wraps
@@ -23,6 +24,7 @@ func NewEthSetupContextDecorator() EthSetupContextDecorator {
 // This is undone at the EthGasConsumeDecorator, where the context is set with the
 // ethereum tx GasLimit.
 func (escd EthSetupContextDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simulate bool, next sdk.AnteHandler) (newCtx sdk.Context, err error) {
+	log.Println("------ante here ---")
 	pinAnte(ctx.AnteTracer(), "EthSetupContextDecorator")
 
 	// Decorator will catch an OutOfGasPanic caused in the next antehandler
