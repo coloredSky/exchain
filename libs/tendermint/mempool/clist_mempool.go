@@ -627,7 +627,6 @@ func (mem *CListMempool) resCbFirstTime(
 				signature:   txInfo.wtx.GetSignature(),
 				from:        r.CheckTx.Tx.GetFrom(),
 				senderNonce: r.CheckTx.SenderNonce,
-				ethAddr:     txInfo.ktx.GetEthAddr(),
 			}
 
 			memTx.senders.Store(txInfo.SenderID, true)

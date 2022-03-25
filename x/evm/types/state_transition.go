@@ -233,13 +233,13 @@ func (st StateTransition) TransitionDb(ctx sdk.Context, config ChainConfig) (exe
 		StartTxLog(analyzer.EVMCORE)
 		defer StopTxLog(analyzer.EVMCORE)
 
-		if sdk.KeyTxCollectMode {
+		if ctx.IsDeliver() && sdk.KeyTxCollectMode {
 			sdk.CurTxHash = *st.TxHash
 			sdk.Call = true
 			sdk.AddMapTxHash(*st.TxHash)
 		}
 		ret, leftOverGas, err = evm.Call(senderRef, *st.Recipient, st.Payload, gasLimit, st.Amount)
-		if sdk.KeyTxCollectMode {
+		if ctx.IsDeliver() && sdk.KeyTxCollectMode {
 			sdk.Call = false
 		}
 

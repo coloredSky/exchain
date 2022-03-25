@@ -660,12 +660,12 @@ func (csdb *CommitStateDB) GetCodeHash(addr ethcmn.Address) ethcmn.Hash {
 // GetState retrieves a value from the given account's storage store.
 func (csdb *CommitStateDB) GetState(addr ethcmn.Address, hash ethcmn.Hash) ethcmn.Hash {
 	if !csdb.ctx.IsCheckTx() {
-		if sdk.KeyTxCollectMode {
-			sdk.AddMapAddrKey(addr, hash)
-		}
 		funcName := "GetState"
 		analyzer.StartTxLog(funcName)
 		defer analyzer.StopTxLog(funcName)
+	}
+	if sdk.Call && sdk.KeyTxCollectMode {
+		sdk.AddMapAddrKey(addr, hash)
 	}
 
 	so := csdb.getStateObject(addr)

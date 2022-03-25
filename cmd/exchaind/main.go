@@ -110,6 +110,10 @@ func main() {
 }
 
 func closeApp(iApp abci.Application) {
+	if sdk.KeyTxCollectMode {
+		sdk.EncodeToFile()
+		fmt.Printf("%v", sdk.StatisticsMap)
+	}
 	fmt.Println("Close App")
 	app := iApp.(*app.OKExChainApp)
 	app.StopStore()

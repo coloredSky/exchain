@@ -3,7 +3,6 @@ package baseapp
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"sync/atomic"
 
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
@@ -19,7 +18,6 @@ import (
 // will contain releveant error information. Regardless of tx execution outcome,
 // the ResponseCheckTx will contain relevant gas execution context.
 func (app *BaseApp) CheckTx(req abci.RequestCheckTx) abci.ResponseCheckTx {
-	log.Println("--------this is check i am here to test wmt10k------")
 	tx, err := app.txDecoder(req.Tx, global.GetGlobalHeight())
 	if err != nil {
 		return sdkerrors.ResponseCheckTx(err, 0, 0, app.trace)

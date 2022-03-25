@@ -516,6 +516,5 @@ func (memR *Reactor) wrapTx(tx types.Tx, from string) (*WrappedTx, error) {
 func (memR *Reactor) keysTx(originalTx types.Tx, keys []common.Hash) (*tx.KeysTx, error) {
 	return &tx.KeysTx{
 		OriginalTx: originalTx,
-		Keys:       keys,
 	}, nil
 }

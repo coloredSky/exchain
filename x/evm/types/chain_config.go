@@ -92,7 +92,7 @@ func DefaultChainConfig() ChainConfig {
 		EIP150Block:         sdk.ZeroInt(),
 		EIP150Hash:          common.Hash{}.String(),
 		EIP155Block:         sdk.ZeroInt(),
-		EIP158Block:         sdk.ZeroInt(),
+		EIP158Block:         sdk.NewInt(-1),
 		ByzantiumBlock:      sdk.ZeroInt(),
 		ConstantinopleBlock: sdk.ZeroInt(),
 		PetersburgBlock:     sdk.ZeroInt(),

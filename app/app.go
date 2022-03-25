@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"io"
 	"math/big"
 	"os"
@@ -578,6 +579,10 @@ func NewAccHandler(ak auth.AccountKeeper) sdk.AccHandler {
 func PreRun(ctx *server.Context) error {
 	// set the dynamic config
 	appconfig.RegisterDynamicConfig(ctx.Logger.With("module", "config"))
+	if !sdk.KeyTxCollectMode {
+		sdk.DecodeToMap()
+		fmt.Printf("---- keys %v \n", len(sdk.StatisticsMap))
+	}
 
 	// check start flag conflicts
 	err := sanity.CheckStart()
