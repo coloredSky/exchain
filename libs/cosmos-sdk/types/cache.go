@@ -336,6 +336,9 @@ type ReadList struct {
 func (c *Cache) GetRWSet() (map[string][]byte, map[string][]byte) {
 	rSet := make(map[string][]byte, 0)
 	wSet := make(map[string][]byte, 0)
+	if c.skip() {
+		return rSet, wSet
+	}
 
 	for k, v := range c.readaccMap {
 		rSet[k.String()] = v.Bz
@@ -554,6 +557,9 @@ func (c *Cache) writeCode(parent *Cache, updateDirty bool, reset bool) {
 //}
 
 func (c *Cache) GetParent() *Cache {
+	if c == nil {
+		return nil
+	}
 	return c.parent
 }
 
