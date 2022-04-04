@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/okex/exchain/x/evm/watcher"
@@ -106,5 +107,6 @@ func (k Keeper) EndBlock(ctx sdk.Context, req abci.RequestEndBlock) []abci.Valid
 
 	k.UpdateInnerBlockData()
 
+	fmt.Println("----", types.GetEvmParamsCache().IsNeedParamsUpdate())
 	return []abci.ValidatorUpdate{}
 }
