@@ -33,10 +33,10 @@ func (c *Cache) UpdateParams(params Params) {
 	c.needParamsUpdate = false
 }
 
-func (c *Cache) SetNeedParamsUpdate(status bool) {
+func (c *Cache) SetNeedParamsUpdate() {
 	c.paramsMutex.Lock()
 	defer c.paramsMutex.Unlock()
-	c.needParamsUpdate = status
+	c.needParamsUpdate = true
 }
 
 func (c *Cache) IsNeedParamsUpdate() bool {
@@ -56,11 +56,11 @@ func (c *Cache) GetParams() Params {
 		c.paramsCache.ExtraEIPs...)
 }
 
-func (c *Cache) SetNeedBlockedUpdate(status bool) {
+func (c *Cache) SetNeedBlockedUpdate() {
 	fmt.Println("SetNeedBlockedUpdate")
 	c.blockedMutex.Lock()
 	defer c.blockedMutex.Unlock()
-	c.needBlockedUpdate = status
+	c.needBlockedUpdate = true
 }
 
 func (c *Cache) IsNeedBlockedUpdate() bool {
@@ -93,7 +93,7 @@ func (c *Cache) UpdateBlockedContractMethod(bcl BlockedContractList) {
 }
 
 func SetEvmParamsNeedUpdate() {
-	GetEvmParamsCache().SetNeedParamsUpdate(true)
+	GetEvmParamsCache().SetNeedParamsUpdate()
 }
 
 func GetEvmParamsCache() *Cache {

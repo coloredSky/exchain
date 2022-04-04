@@ -257,7 +257,7 @@ func (csdb *CommitStateDB) SetHeightHash(height uint64, hash ethcmn.Hash) {
 func (csdb *CommitStateDB) SetParams(params Params) {
 	csdb.params = &params
 	csdb.paramSpace.SetParamSet(csdb.ctx, &params)
-	GetEvmParamsCache().SetNeedParamsUpdate(true)
+	GetEvmParamsCache().SetNeedParamsUpdate()
 }
 
 // SetBalance sets the balance of an account.
@@ -1286,7 +1286,7 @@ func (csdb *CommitStateDB) IsDeployerInWhitelist(deployerAddr sdk.AccAddress) bo
 
 // SetContractBlockedList sets the target address list into blocked list store
 func (csdb *CommitStateDB) SetContractBlockedList(addrList AddressList) {
-	defer GetEvmParamsCache().SetNeedBlockedUpdate(true)
+	defer GetEvmParamsCache().SetNeedBlockedUpdate()
 	if csdb.Watcher.Enabled() {
 		for i := 0; i < len(addrList); i++ {
 			csdb.Watcher.SaveContractBlockedListItem(addrList[i])
@@ -1300,7 +1300,7 @@ func (csdb *CommitStateDB) SetContractBlockedList(addrList AddressList) {
 
 // DeleteContractBlockedList deletes the target address list from blocked list store
 func (csdb *CommitStateDB) DeleteContractBlockedList(addrList AddressList) {
-	defer GetEvmParamsCache().SetNeedBlockedUpdate(true)
+	defer GetEvmParamsCache().SetNeedBlockedUpdate()
 	if csdb.Watcher.Enabled() {
 		for i := 0; i < len(addrList); i++ {
 			csdb.Watcher.DeleteContractBlockedList(addrList[i])
@@ -1344,7 +1344,7 @@ func (csdb *CommitStateDB) GetContractMethodBlockedByAddress(contractAddr sdk.Ac
 	if csdb.ctx.IsDeliver() {
 		if GetEvmParamsCache().IsNeedBlockedUpdate() {
 			bcl := csdb.GetContractMethodBlockedList()
-			//fmt.Println("GGGGGGGGGGG", len(bcl))
+			fmt.Println("GGGGGGGGGGG", len(bcl))
 			GetEvmParamsCache().UpdateBlockedContractMethod(bcl)
 		}
 
@@ -1390,7 +1390,7 @@ func (csdb *CommitStateDB) GetContractMethodBlockedByAddress(contractAddr sdk.Ac
 
 // InsertContractMethodBlockedList sets the list of contract method blocked into blocked list store
 func (csdb *CommitStateDB) InsertContractMethodBlockedList(contractList BlockedContractList) sdk.Error {
-	defer GetEvmParamsCache().SetNeedBlockedUpdate(true)
+	defer GetEvmParamsCache().SetNeedBlockedUpdate()
 	for i := 0; i < len(contractList); i++ {
 		bc := csdb.GetContractMethodBlockedByAddress(contractList[i].Address)
 		if bc != nil {
@@ -1410,7 +1410,7 @@ func (csdb *CommitStateDB) InsertContractMethodBlockedList(contractList BlockedC
 
 // DeleteContractMethodBlockedList delete the list of contract method blocked  from blocked list store
 func (csdb *CommitStateDB) DeleteContractMethodBlockedList(contractList BlockedContractList) sdk.Error {
-	defer GetEvmParamsCache().SetNeedBlockedUpdate(true)
+	defer GetEvmParamsCache().SetNeedBlockedUpdate()
 	for i := 0; i < len(contractList); i++ {
 		bc := csdb.GetContractMethodBlockedByAddress(contractList[i].Address)
 		if bc != nil {
@@ -1438,7 +1438,6 @@ func (csdb *CommitStateDB) DeleteContractMethodBlockedList(contractList BlockedC
 
 // GetContractMethodBlockedList get the list of contract method blocked from blocked list store
 func (csdb *CommitStateDB) GetContractMethodBlockedList() (blockedContractList BlockedContractList) {
-	//fmt.Println("storeJey", csdb.storeKey.String())
 	store := csdb.ctx.KVStore(csdb.storeKey)
 	iterator := sdk.KVStorePrefixIterator(store, KeyPrefixContractBlockedList)
 	defer iterator.Close()
@@ -1453,7 +1452,6 @@ func (csdb *CommitStateDB) GetContractMethodBlockedList() (blockedContractList B
 		bc := NewBlockContract(addr, methods)
 		blockedContractList = append(blockedContractList, *bc)
 	}
-	//fmt.Println("updateSize---", len(blockedContractList))
 	return
 }
 
