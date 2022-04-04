@@ -105,6 +105,6 @@ func (k Keeper) EndBlock(ctx sdk.Context, req abci.RequestEndBlock) []abci.Valid
 	}
 
 	k.UpdateInnerBlockData()
-
+	types.GetEvmParamsCache().SetNeedBlockedUpdate(false)
 	return []abci.ValidatorUpdate{}
 }
