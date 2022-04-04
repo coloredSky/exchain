@@ -794,5 +794,5 @@ func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
 	f.mu.Unlock()
 	<-chanStop
 	<-chanStop
-	fmt.Println("SetCurrent")
+	//fmt.Println("SetCurrent")
 }

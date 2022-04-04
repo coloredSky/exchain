@@ -1438,7 +1438,7 @@ func (csdb *CommitStateDB) DeleteContractMethodBlockedList(contractList BlockedC
 
 // GetContractMethodBlockedList get the list of contract method blocked from blocked list store
 func (csdb *CommitStateDB) GetContractMethodBlockedList() (blockedContractList BlockedContractList) {
-	fmt.Println("storeJey", csdb.storeKey.String())
+	//fmt.Println("storeJey", csdb.storeKey.String())
 	store := csdb.ctx.KVStore(csdb.storeKey)
 	iterator := sdk.KVStorePrefixIterator(store, KeyPrefixContractBlockedList)
 	defer iterator.Close()
@@ -1453,7 +1453,7 @@ func (csdb *CommitStateDB) GetContractMethodBlockedList() (blockedContractList B
 		bc := NewBlockContract(addr, methods)
 		blockedContractList = append(blockedContractList, *bc)
 	}
-	fmt.Println("updateSize---", len(blockedContractList))
+	//fmt.Println("updateSize---", len(blockedContractList))
 	return
 }
 
