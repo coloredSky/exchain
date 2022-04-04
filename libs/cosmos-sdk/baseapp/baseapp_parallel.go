@@ -781,6 +781,7 @@ func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
 	res.ms.IteratorCache(func(key, value []byte, isDirty bool, isdelete bool, storeKey sdk.StoreKey) bool {
 		if isDirty {
 
+			fmt.Println("dirty", txIndex, hex.EncodeToString(key), hex.EncodeToString(value), isDirty, isdelete, storeKey.Name())
 			if isdelete {
 				f.cms.GetKVStore(storeKey).Delete(key)
 			} else if value != nil {
@@ -793,4 +794,5 @@ func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
 	f.mu.Unlock()
 	<-chanStop
 	<-chanStop
+	fmt.Println("SetCurrent")
 }
