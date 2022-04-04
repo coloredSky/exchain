@@ -782,6 +782,16 @@ func (cs *State) handleMsg(mi msgInfo) {
 	}
 }
 
+func (cs *State) dumpValidatorsAndVotePower() string {
+	ret := ""
+	validators := cs.Validators.Validators
+	for _, v := range validators {
+		ret += fmt.Sprintf("-%v %v-", v.Address.String()[:1], v.VotingPower)
+	}
+
+	return ret
+}
+
 func (cs *State) handleTimeout(ti timeoutInfo, rs cstypes.RoundState) {
 	cs.Logger.Debug("Received tock", "timeout", ti.Duration, "height", ti.Height, "round", ti.Round, "step", ti.Step)
 
@@ -802,6 +812,12 @@ func (cs *State) handleTimeout(ti timeoutInfo, rs cstypes.RoundState) {
 		trace.GetElapsedInfo().AddInfo(trace.Produce, cs.trc.Format())
 		trace.GetElapsedInfo().Dump(cs.Logger.With("module", "main"))
 
+		if cs.Validators != nil && cs.Validators.GetProposer() != nil {
+			p := cs.Validators.GetProposer().Address.String()[:1]
+			d := cs.dumpValidatorsAndVotePower()
+
+			fmt.Printf("round new height:%v proposer: %v %v \n", ti.Height, p, d)
+		}
 		cs.trc.Reset()
 		cs.enterNewRound(ti.Height, 0)
 	case cstypes.RoundStepNewRound:
