@@ -257,7 +257,7 @@ func (csdb *CommitStateDB) SetHeightHash(height uint64, hash ethcmn.Hash) {
 func (csdb *CommitStateDB) SetParams(params Params) {
 	csdb.params = &params
 	csdb.paramSpace.SetParamSet(csdb.ctx, &params)
-	GetEvmParamsCache().SetNeedParamsUpdate()
+	GetEvmParamsCache().SetNeedParamsUpdate(true)
 }
 
 // SetBalance sets the balance of an account.

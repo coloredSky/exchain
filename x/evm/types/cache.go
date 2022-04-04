@@ -33,10 +33,10 @@ func (c *Cache) UpdateParams(params Params) {
 	c.needParamsUpdate = false
 }
 
-func (c *Cache) SetNeedParamsUpdate() {
+func (c *Cache) SetNeedParamsUpdate(status bool) {
 	c.paramsMutex.Lock()
 	defer c.paramsMutex.Unlock()
-	c.needParamsUpdate = true
+	c.needParamsUpdate = status
 }
 
 func (c *Cache) IsNeedParamsUpdate() bool {
@@ -89,11 +89,11 @@ func (c *Cache) UpdateBlockedContractMethod(bcl BlockedContractList) {
 		c.blockedContractMethodsCache[bcl[i].Address.String()] = bcl[i]
 	}
 	c.blockedMutex.Unlock()
-	c.needBlockedUpdate = false
+	//c.needBlockedUpdate = false
 }
 
 func SetEvmParamsNeedUpdate() {
-	GetEvmParamsCache().SetNeedParamsUpdate()
+	GetEvmParamsCache().SetNeedParamsUpdate(true)
 }
 
 func GetEvmParamsCache() *Cache {
