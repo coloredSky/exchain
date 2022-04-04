@@ -1453,7 +1453,7 @@ func (csdb *CommitStateDB) GetContractMethodBlockedList() (blockedContractList B
 		bc := NewBlockContract(addr, methods)
 		blockedContractList = append(blockedContractList, *bc)
 	}
-	fmt.Println("updateSize---", len(blockedContractList)))
+	fmt.Println("updateSize---", len(blockedContractList))
 	return
 }
 
