@@ -1286,7 +1286,7 @@ func (csdb *CommitStateDB) IsDeployerInWhitelist(deployerAddr sdk.AccAddress) bo
 
 // SetContractBlockedList sets the target address list into blocked list store
 func (csdb *CommitStateDB) SetContractBlockedList(addrList AddressList) {
-	defer GetEvmParamsCache().SetNeedBlockedUpdate()
+	defer GetEvmParamsCache().SetNeedBlockedUpdate(true)
 	if csdb.Watcher.Enabled() {
 		for i := 0; i < len(addrList); i++ {
 			csdb.Watcher.SaveContractBlockedListItem(addrList[i])
@@ -1300,7 +1300,7 @@ func (csdb *CommitStateDB) SetContractBlockedList(addrList AddressList) {
 
 // DeleteContractBlockedList deletes the target address list from blocked list store
 func (csdb *CommitStateDB) DeleteContractBlockedList(addrList AddressList) {
-	defer GetEvmParamsCache().SetNeedBlockedUpdate()
+	defer GetEvmParamsCache().SetNeedBlockedUpdate(true)
 	if csdb.Watcher.Enabled() {
 		for i := 0; i < len(addrList); i++ {
 			csdb.Watcher.DeleteContractBlockedList(addrList[i])
@@ -1390,7 +1390,7 @@ func (csdb *CommitStateDB) GetContractMethodBlockedByAddress(contractAddr sdk.Ac
 
 // InsertContractMethodBlockedList sets the list of contract method blocked into blocked list store
 func (csdb *CommitStateDB) InsertContractMethodBlockedList(contractList BlockedContractList) sdk.Error {
-	defer GetEvmParamsCache().SetNeedBlockedUpdate()
+	defer GetEvmParamsCache().SetNeedBlockedUpdate(true)
 	for i := 0; i < len(contractList); i++ {
 		bc := csdb.GetContractMethodBlockedByAddress(contractList[i].Address)
 		if bc != nil {
@@ -1410,7 +1410,7 @@ func (csdb *CommitStateDB) InsertContractMethodBlockedList(contractList BlockedC
 
 // DeleteContractMethodBlockedList delete the list of contract method blocked  from blocked list store
 func (csdb *CommitStateDB) DeleteContractMethodBlockedList(contractList BlockedContractList) sdk.Error {
-	defer GetEvmParamsCache().SetNeedBlockedUpdate()
+	defer GetEvmParamsCache().SetNeedBlockedUpdate(true)
 	for i := 0; i < len(contractList); i++ {
 		bc := csdb.GetContractMethodBlockedByAddress(contractList[i].Address)
 		if bc != nil {

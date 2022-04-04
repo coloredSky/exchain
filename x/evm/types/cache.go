@@ -56,11 +56,11 @@ func (c *Cache) GetParams() Params {
 		c.paramsCache.ExtraEIPs...)
 }
 
-func (c *Cache) SetNeedBlockedUpdate() {
+func (c *Cache) SetNeedBlockedUpdate(status bool) {
 	fmt.Println("SetNeedBlockedUpdate")
 	c.blockedMutex.Lock()
 	defer c.blockedMutex.Unlock()
-	c.needBlockedUpdate = true
+	c.needBlockedUpdate = status
 }
 
 func (c *Cache) IsNeedBlockedUpdate() bool {
