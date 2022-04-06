@@ -1,6 +1,7 @@
 package baseapp
 
 import (
+	"encoding/hex"
 	"fmt"
 	"os"
 	"sort"
@@ -172,8 +173,11 @@ func (app *BaseApp) EndBlock(req abci.RequestEndBlock) (res abci.ResponseEndBloc
 	if app.endBlocker != nil {
 		res = app.endBlocker(app.deliverState.ctx, req)
 	}
-
 	go func() {
+		app.deliverState.ms.IteratorCache(func(key, value []byte, isDirty bool, isDelete bool, storeKey sdk.StoreKey) bool {
+			sdk.DebugLogByScf.AddCommitInfo(fmt.Sprintf("commot %s %s %v %v", hex.EncodeToString(key), hex.EncodeToString(value), isDirty, isDelete))
+			return true
+		}, nil)
 		app.deliverState.ms.Write()
 		app.parallelTxManage.commitDone <- struct{}{}
 	}()
