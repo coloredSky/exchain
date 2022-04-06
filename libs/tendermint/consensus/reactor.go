@@ -3,6 +3,7 @@ package consensus
 import (
 	"fmt"
 	"github.com/okex/exchain/libs/tendermint/libs/automation"
+	stdlog "log"
 	"reflect"
 	"sync"
 	"time"
@@ -614,6 +615,7 @@ OUTER_LOOP:
 			{
 				msg := &ProposalMessage{Proposal: rs.Proposal}
 				logger.Debug("Sending proposal", "height", prs.Height, "round", prs.Round)
+				stdlog.Printf("send propsal")
 				if peer.Send(DataChannel, cdc.MustMarshalBinaryBare(msg)) {
 					// NOTE[ZM]: A peer might have received different proposal msg so this Proposal msg will be rejected!
 					ps.SetHasProposal(rs.Proposal)
@@ -714,6 +716,7 @@ OUTER_LOOP:
 		// If height matches, then send LastCommit, Prevotes, Precommits.
 		if rs.Height == prs.Height {
 			heightLogger := logger.With("height", prs.Height)
+
 			if conR.gossipVotesForHeight(heightLogger, rs, prs, ps) {
 				continue OUTER_LOOP
 			}
@@ -782,6 +785,7 @@ func (conR *Reactor) gossipVotesForHeight(
 	}
 	// If there are prevotes to send...
 	if prs.Step <= cstypes.RoundStepPrevoteWait && prs.Round != -1 && prs.Round <= rs.Round {
+		stdlog.Printf("round vote %v:%v \n", rs.Height, rs.Round, conR.conS.dumpIdentify())
 		if ps.PickSendVote(rs.Votes.Prevotes(prs.Round)) {
 			logger.Debug("Picked rs.Prevotes(prs.Round) to send", "round", prs.Round)
 			return true
@@ -789,6 +793,7 @@ func (conR *Reactor) gossipVotesForHeight(
 	}
 	// If there are precommits to send...
 	if prs.Step <= cstypes.RoundStepPrecommitWait && prs.Round != -1 && prs.Round <= rs.Round {
+		stdlog.Printf("round precommit %v:%v %v\n", rs.Height, rs.Round, conR.conS.dumpIdentify())
 		if ps.PickSendVote(rs.Votes.Precommits(prs.Round)) {
 			logger.Debug("Picked rs.Precommits(prs.Round) to send", "round", prs.Round)
 			return true

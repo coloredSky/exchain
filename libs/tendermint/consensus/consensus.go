@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/okex/exchain/libs/tendermint/libs/automation"
 	"github.com/spf13/viper"
+	stdlog "log"
 	"reflect"
 	"runtime/debug"
 	"sync"
@@ -786,10 +787,15 @@ func (cs *State) dumpValidatorsAndVotePower() string {
 	ret := ""
 	validators := cs.Validators.Validators
 	for _, v := range validators {
-		ret += fmt.Sprintf("-%v %v-", v.Address.String()[:1], v.VotingPower)
+		ret += fmt.Sprintf("|%v:%v:%v|", v.Address.String()[:2], v.VotingPower, v.ProposerPriority)
 	}
 
 	return ret
+}
+
+func (cs *State) dumpIdentify() string {
+	pk, _ := cs.privValidator.GetPubKey()
+	return pk.Address().String()[0:2]
 }
 
 func (cs *State) handleTimeout(ti timeoutInfo, rs cstypes.RoundState) {
@@ -813,10 +819,10 @@ func (cs *State) handleTimeout(ti timeoutInfo, rs cstypes.RoundState) {
 		trace.GetElapsedInfo().Dump(cs.Logger.With("module", "main"))
 
 		if cs.Validators != nil && cs.Validators.GetProposer() != nil {
-			p := cs.Validators.GetProposer().Address.String()[:1]
+			p := cs.Validators.GetProposer().Address.String()[:2]
 			d := cs.dumpValidatorsAndVotePower()
 
-			fmt.Printf("round new height:%v proposer: %v %v \n", ti.Height, p, d)
+			fmt.Printf("round new height: %v %v:%v proposer: %v %v \n", cs.dumpIdentify(), ti.Height, ti.Round, p, d)
 		}
 		cs.trc.Reset()
 		cs.enterNewRound(ti.Height, 0)
@@ -1035,6 +1041,7 @@ func (cs *State) enterPropose(height int64, round int) {
 			address,
 			"privValidator",
 			cs.privValidator)
+		stdlog.Printf("round propose: height %v round %v %v %v \n", height, round, cs.dumpIdentify(), cs.dumpValidatorsAndVotePower())
 		cs.decideProposal(height, round)
 	} else {
 		logger.Info("enterPropose: Not our turn to propose",
@@ -1753,6 +1760,7 @@ func (cs *State) defaultSetProposal(proposal *types.Proposal) error {
 		return ErrInvalidProposalSignature
 	}
 
+	stdlog.Printf("round set proposal hr %v:%v %v %v %v \n ", cs.Height, cs.Round, cs.dumpIdentify(), cs.dumpValidatorsAndVotePower(), cs.Proposal)
 	cs.Proposal = proposal
 	// We don't update cs.ProposalBlockParts if it is already set.
 	// This happens if we're already in cstypes.RoundStepCommit or if there is a valid block in the current round.
