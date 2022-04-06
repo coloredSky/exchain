@@ -2,7 +2,6 @@ package keeper
 
 import (
 	"fmt"
-
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
 	abci "github.com/okex/exchain/libs/tendermint/abci/types"
 
@@ -34,6 +33,7 @@ func (k Keeper) AllocateTokens(ctx sdk.Context, totalPreviousPower int64,
 	}
 	logger.Debug("AllocateTokens", "TotalFee", feesCollected.String())
 
+	fmt.Println("????Allocate", k.feeCollectorName, feesCollected)
 	// transfer collected fees to the distribution module account
 	err := k.supplyKeeper.SendCoinsFromModuleToModule(ctx, k.feeCollectorName, types.ModuleName, feesCollected)
 	if err != nil {
