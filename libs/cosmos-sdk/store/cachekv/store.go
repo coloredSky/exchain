@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"container/list"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"reflect"
+	"runtime/debug"
 	"sort"
 	"sync"
 	"unsafe"
@@ -333,7 +335,9 @@ func (store *Store) dirtyItems(start, end []byte) {
 // Only entrypoint to mutate store.cache.
 func (store *Store) setCacheValue(key, value []byte, deleted bool, dirty bool) {
 	if hex.EncodeToString(key) == "0193354845030274cd4bf1686abd60ab28ec52e1a7" {
-		//debug.PrintStack()
+		fmt.Println("begin print stack")
+		debug.PrintStack()
+		fmt.Println("end print stack")
 	}
 	keyStr := string(key)
 	if !dirty {

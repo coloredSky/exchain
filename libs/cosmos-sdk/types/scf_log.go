@@ -37,9 +37,9 @@ func (s *ScfLog) PrintDebugInfo() {
 		fmt.Println(v)
 	}
 
-	fmt.Println("detail rwset")
-	for _, v := range s.rwSet {
-		fmt.Println(v)
-	}
+	//fmt.Println("detail rwset")
+	//for _, v := range s.rwSet {
+	//	fmt.Println(v)
+	//}
 
 }
