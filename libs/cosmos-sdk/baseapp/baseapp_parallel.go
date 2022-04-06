@@ -178,7 +178,7 @@ func (app *BaseApp) paraLoadSender(txs [][]byte) {
 }
 
 func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.ResponseDeliverTx {
-	sdk.DebugLogByScf.Clean()
+	//sdk.DebugLogByScf.Clean()
 
 	if len(txs) == 0 {
 		return make([]*abci.ResponseDeliverTx, 0)
@@ -188,10 +188,6 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 		app.paraLoadSender(txs)
 		return nil
 	}
-	//ts := time.Now()
-	//defer func() {
-	//	sdk.AddParaAllTIme(time.Now().Sub(ts))
-	//}()
 	txWithIndex := make([][]byte, 0)
 	for index, v := range txs {
 		txWithIndex = append(txWithIndex, getTxByteWithIndex(v, index))
@@ -225,18 +221,15 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 	return app.runTxs(txWithIndex, groupList, nextIndexInGroup)
 }
 
-//TODO: fuck
 func (app *BaseApp) fixFeeCollector(txs [][]byte, ms sdk.CacheMultiStore) {
 	currTxFee := sdk.Coins{}
 	for index, v := range txs {
 		txString := string(v)
 		if app.parallelTxManage.txReps[index].paraMsg.AnteErr != nil {
-			//fmt.Println("err235", index, app.parallelTxManage.txReps[index].paraMsg.AnteErr)
 			continue
 		}
 		txFee := app.parallelTxManage.fee[txString]
 		refundFee := app.parallelTxManage.txReps[index].paraMsg.RefundFee
-		//fmt.Println("index", index, txFee, refundFee)
 		txFee = txFee.Sub(refundFee)
 		currTxFee = currTxFee.Add(txFee...)
 	}
@@ -250,10 +243,6 @@ func (app *BaseApp) fixFeeCollector(txs [][]byte, ms sdk.CacheMultiStore) {
 }
 
 func (app *BaseApp) runTxs(txs [][]byte, groupList map[int][]int, nextTxInGroup map[int]int) []*abci.ResponseDeliverTx {
-	//fmt.Println("detail", app.deliverState.ctx.BlockHeight(), "len(group)", len(groupList))
-	//for index := 0; index < len(groupList); index++ {
-	//	fmt.Println("groupIndex", index, "groupSize", len(groupList[index]), "list", groupList[index])
-	//}
 	maxGas := app.getMaximumBlockGas()
 	currentGas := uint64(0)
 	overFlow := func(sumGas uint64, currGas int64, maxGas uint64) bool {
@@ -300,13 +289,11 @@ func (app *BaseApp) runTxs(txs [][]byte, groupList map[int][]int, nextTxInGroup 
 		}
 
 		for txReps[txIndex] != nil {
-			fmt.Println("ready to check", txIndex)
 			txBytes := app.parallelTxManage.indexMapBytes[txIndex]
 			s := pm.txStatus[txBytes]
 			res := txReps[txIndex]
 
 			if pm.newIsConflict(res) || overFlow(currentGas, res.resp.GasUsed, maxGas) {
-				fmt.Println("runRun", txIndex)
 				rerunIdx++
 				s.reRun = true
 				res = app.deliverTxWithCache(txs[txIndex], txIndex)
@@ -333,9 +320,7 @@ func (app *BaseApp) runTxs(txs [][]byte, groupList map[int][]int, nextTxInGroup 
 				app.deliverState.ctx.BlockGasMeter().ConsumeGas(sdk.Gas(res.resp.GasUsed), "unexpected error")
 			}
 
-			fmt.Println("SetCurrent", txIndex)
 			pm.SetCurrentIndex(txIndex, res) //Commit
-			fmt.Println("SetCurrent end", txIndex)
 			currentGas += uint64(res.resp.GasUsed)
 			txIndex++
 			if txIndex == len(txs) {
@@ -378,7 +363,6 @@ func (app *BaseApp) runTxs(txs [][]byte, groupList map[int][]int, nextTxInGroup 
 
 	}
 	pm.cms.Write()
-	//sdk.AddRunTx(time.Now().Sub(ts))
 	return deliverTxs
 }
 
@@ -741,7 +725,6 @@ func (f *parallelTxManager) getTxResult(tx []byte) sdk.CacheMultiStore {
 			f.txReps[next] = nil
 		}
 	}
-	fmt.Println("run", index, base)
 	f.runBase[index] = base
 
 	return ms
