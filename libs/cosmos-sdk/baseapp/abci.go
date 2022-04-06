@@ -178,6 +178,11 @@ func (app *BaseApp) EndBlock(req abci.RequestEndBlock) (res abci.ResponseEndBloc
 			sdk.DebugLogByScf.AddCommitInfo(fmt.Sprintf("commot %s %s %v %v", hex.EncodeToString(key), hex.EncodeToString(value), isDirty, isDelete))
 			return true
 		}, nil)
+
+		if app.deliverState.ctx.BlockHeight() == 3078802 {
+			sdk.DebugLogByScf.PrintDebugInfo()
+		}
+
 		app.deliverState.ms.Write()
 		app.parallelTxManage.commitDone <- struct{}{}
 	}()
