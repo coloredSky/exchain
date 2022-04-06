@@ -7,7 +7,7 @@ import (
 	"github.com/okex/exchain/x/evm/types"
 )
 
-func (k *Keeper) FixLog(logIndex []int, errs []error) [][]byte {
+func (k *Keeper) FixLog(logIndex []int, anteErrs []error) [][]byte {
 	txSize := len(logIndex)
 	res := make([][]byte, txSize, txSize)
 	logSize := uint(0)
@@ -16,7 +16,7 @@ func (k *Keeper) FixLog(logIndex []int, errs []error) [][]byte {
 
 	for index := 0; index < txSize; index++ {
 		rs, ok := k.LogsManages.Get(logIndex[index])
-		if !ok || errs[index] != nil {
+		if !ok || anteErrs[index] != nil {
 			continue
 		}
 		txInBlock++
