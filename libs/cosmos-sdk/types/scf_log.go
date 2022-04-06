@@ -33,9 +33,9 @@ func (s *ScfLog) AddRWSet(data []string) {
 
 func (s *ScfLog) PrintDebugInfo() {
 	fmt.Println("begin print commit info")
-	for _, v := range s.commitInfo {
-		fmt.Println(v)
-	}
+	//for _, v := range s.commitInfo {
+	//	fmt.Println(v)
+	//}
 
 	//fmt.Println("detail rwset")
 	//for _, v := range s.rwSet {
