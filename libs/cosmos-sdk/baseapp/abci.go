@@ -181,7 +181,7 @@ func (app *BaseApp) EndBlock(req abci.RequestEndBlock) (res abci.ResponseEndBloc
 		}, nil)
 
 		if app.deliverState.ctx.BlockHeight() == 3078802 {
-			sdk.DebugLogByScf.PrintDebugInfo()
+			//sdk.DebugLogByScf.PrintDebugInfo()
 		}
 
 		app.deliverState.ms.Write()
