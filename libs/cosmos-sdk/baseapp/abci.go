@@ -1,6 +1,7 @@
 package baseapp
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -166,6 +167,7 @@ func (app *BaseApp) BeginBlock(req abci.RequestBeginBlock) (res abci.ResponseBeg
 
 // EndBlock implements the ABCI interface.
 func (app *BaseApp) EndBlock(req abci.RequestEndBlock) (res abci.ResponseEndBlock) {
+	cnt = 0
 	if app.deliverState.ms.TracingEnabled() {
 		app.deliverState.ms = app.deliverState.ms.SetTracingContext(nil).(sdk.CacheMultiStore)
 	}
@@ -173,6 +175,21 @@ func (app *BaseApp) EndBlock(req abci.RequestEndBlock) (res abci.ResponseEndBloc
 	if app.endBlocker != nil {
 		res = app.endBlocker(app.deliverState.ctx, req)
 	}
+
+	go func() {
+		sdk.SLog.Clean()
+		app.deliverState.ms.IteratorCache(func(key, value []byte, isDirty bool) bool {
+			if isDirty {
+				ss := fmt.Sprintf("commit %s %s %v %s", hex.EncodeToString(key), hex.EncodeToString(value), isDirty, "asd")
+				sdk.SLog.Add(ss)
+			}
+
+			return true
+		})
+		//if app.deliverState.ctx.BlockHeight() == 4663638 {
+		//sdk.SLog.Print()
+		//}
+	}()
 
 	return
 }

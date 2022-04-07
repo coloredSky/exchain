@@ -7,6 +7,7 @@ import (
 	"github.com/okex/exchain/libs/tendermint/crypto"
 	"github.com/okex/exchain/libs/tendermint/libs/log"
 	"github.com/spf13/viper"
+	"runtime/debug"
 	"time"
 )
 
@@ -66,7 +67,7 @@ type Cache struct {
 
 func initCacheParam() {
 	UseCache = viper.GetBool(FlagMultiCache)
-
+	UseCache = true
 	if data := viper.GetInt(MaxAccInMultiCache); data != 0 {
 		maxAccInMap = data
 		deleteAccCount = maxAccInMap / 10
@@ -107,7 +108,13 @@ func (c *Cache) UpdateAccount(addr AccAddress, acc account, lenBytes int, isDirt
 	if c.skip() {
 		return
 	}
+
 	ethAddr := ethcmn.BytesToAddress(addr.Bytes())
+	if ethAddr.String() == "0xC82854BBd93E996E7d279F5038dD70E71da7f026" {
+		fmt.Println("write to cache~~~~~", ethAddr, acc.GetCoins())
+		//debug.PrintStack()
+	}
+
 	c.accMap[ethAddr] = &accountWithCache{
 		acc:     acc,
 		isDirty: isDirty,
@@ -221,6 +228,17 @@ func (c *Cache) writeStorage(updateDirty bool) {
 func (c *Cache) writeAcc(updateDirty bool) {
 	for addr, v := range c.accMap {
 		if needWriteToParent(updateDirty, v.isDirty) {
+			if v != nil && v.acc != nil {
+				if addr.String() == "0xC82854BBd93E996E7d279F5038dD70E71da7f026" {
+					fmt.Println("write to parent", addr, v.acc.GetCoins())
+					debug.PrintStack()
+				}
+
+			} else {
+				if addr.String() == "0xC82854BBd93E996E7d279F5038dD70E71da7f026" {
+					fmt.Println("write to parent", addr, "isNull")
+				}
+			}
 			c.parent.accMap[addr] = v
 		}
 	}
