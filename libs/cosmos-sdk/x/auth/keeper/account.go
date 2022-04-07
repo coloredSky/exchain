@@ -37,6 +37,8 @@ func (ak AccountKeeper) GetAccount(ctx sdk.Context, addr sdk.AccAddress) exporte
 		}
 
 		return data.Copy().(exported.Account)
+	} else {
+		fmt.Println("GetAccount-not-find", ethcmn.BytesToAddress(addr).String(), data == nil)
 	}
 
 	store := ctx.KVStore(ak.key)
