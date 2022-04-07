@@ -1,8 +1,6 @@
 package keeper
 
 import (
-	"encoding/hex"
-	"fmt"
 	ethcmn "github.com/ethereum/go-ethereum/common"
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
 	"github.com/okex/exchain/libs/cosmos-sdk/x/auth/exported"
@@ -62,7 +60,7 @@ func (ak AccountKeeper) GetAccount(ctx sdk.Context, addr sdk.AccAddress) exporte
 	}
 	acc := ak.decodeAccount(bz)
 	if printLog {
-		fmt.Println("getFromStore", hex.EncodeToString(bz), acc.GetCoins().String())
+		//fmt.Println("getFromStore", hex.EncodeToString(bz), acc.GetCoins().String())
 	}
 	ctx.Cache().UpdateAccount(addr, acc, len(bz), false)
 	return acc
