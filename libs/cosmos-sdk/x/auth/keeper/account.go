@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"fmt"
 	ethcmn "github.com/ethereum/go-ethereum/common"
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
 	"github.com/okex/exchain/libs/cosmos-sdk/x/auth/exported"
@@ -30,6 +31,7 @@ func (ak AccountKeeper) NewAccount(ctx sdk.Context, acc exported.Account) export
 func (ak AccountKeeper) GetAccount(ctx sdk.Context, addr sdk.AccAddress) exported.Account {
 	if data, gas, ok := ctx.Cache().GetAccount(ethcmn.BytesToAddress(addr)); ok {
 		ctx.GasMeter().ConsumeGas(gas, "x/auth/keeper/account.go/GetAccount")
+		fmt.Println("GetAccount", ethcmn.BytesToAddress(addr).String(), data == nil)
 		if data == nil {
 			return nil
 		}
