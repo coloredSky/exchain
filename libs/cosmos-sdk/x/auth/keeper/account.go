@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"encoding/hex"
 	"fmt"
 	ethcmn "github.com/ethereum/go-ethereum/common"
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
@@ -29,20 +30,35 @@ func (ak AccountKeeper) NewAccount(ctx sdk.Context, acc exported.Account) export
 
 // GetAccount implements sdk.AccountKeeper.
 func (ak AccountKeeper) GetAccount(ctx sdk.Context, addr sdk.AccAddress) exported.Account {
+
+	printLog := false
+	if ethcmn.BytesToAddress(addr).String() == "0x93354845030274cD4bf1686Abd60AB28EC52e1a7" {
+		printLog = true
+	}
+
 	if data, gas, ok := ctx.Cache().GetAccount(ethcmn.BytesToAddress(addr)); ok {
 		ctx.GasMeter().ConsumeGas(gas, "x/auth/keeper/account.go/GetAccount")
-		fmt.Println("GetAccount", ethcmn.BytesToAddress(addr).String(), data == nil)
+		if printLog {
+			fmt.Println("GetAccount", ethcmn.BytesToAddress(addr).String(), data == nil)
+		}
+
 		if data == nil {
 			return nil
 		}
 
 		return data.Copy().(exported.Account)
 	} else {
-		fmt.Println("GetAccount-not-find", ethcmn.BytesToAddress(addr).String(), data == nil)
+		if printLog {
+			fmt.Println("GetAccount-not-find", ethcmn.BytesToAddress(addr).String(), data == nil)
+		}
+
 	}
 
 	store := ctx.KVStore(ak.key)
 	bz := store.Get(types.AddressStoreKey(addr))
+	if printLog {
+		fmt.Println("getFromStore", hex.EncodeToString(bz))
+	}
 	if bz == nil {
 		ctx.Cache().UpdateAccount(addr, nil, len(bz), false)
 		return nil
