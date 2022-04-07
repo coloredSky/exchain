@@ -108,7 +108,10 @@ func (c *Cache) UpdateAccount(addr AccAddress, acc account, lenBytes int, isDirt
 		return
 	}
 	ethAddr := ethcmn.BytesToAddress(addr.Bytes())
-	fmt.Println("UpdateAccount", ethAddr.String(), acc.GetCoins().String())
+	if ethAddr.String() == "0x93354845030274cD4bf1686Abd60AB28EC52e1a7" {
+		fmt.Println("UpdateAccount", ethAddr.String(), acc.GetCoins().String())
+	}
+
 	c.accMap[ethAddr] = &accountWithCache{
 		acc:     acc,
 		isDirty: isDirty,
