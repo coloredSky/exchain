@@ -1,0 +1,7 @@
+@startuml
+state start1  <<start>>
+state NewHeight
+start1  --> NewHeight : consensus.State.\nOnStart()
+[*]     --> NewHeight : consensus.State.\nfinalizeCommit(height int64)
+NewHeight: consensus.State.\nscheduleRound0(rs *cstypes.RoundState)
+@enduml

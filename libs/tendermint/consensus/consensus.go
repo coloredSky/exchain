@@ -541,7 +541,7 @@ func (cs *State) reconstructLastCommit(state sm.State) {
 
 // Updates State and increments height to match that of state.
 // The round becomes 0 and cs.Step becomes cstypes.RoundStepNewHeight.
-func (cs *State) updateToState(state sm.State) {
+func (cs *State) updateToState(state sm.State, fin ...bool) {
 	// Do not consider this situation that the consensus machine was stopped
 	// when the fast-sync mode opens. So remove it!
 	//if cs.CommitRound > -1 && 0 < cs.Height && cs.Height != state.LastBlockHeight {
@@ -707,6 +707,9 @@ func (cs *State) receiveRoutine(maxSteps int) {
 			cs.wal.Write(ti)
 			// if the timeout is relevant to the rs
 			// go to the next step
+			if ti.Step == cstypes.RoundStepNewHeight {
+				stdlog.Printf("round new height %v %v \n", cs.Height, cs.Round)
+			}
 			cs.handleTimeout(ti, rs)
 		case <-cs.Quit():
 			onExit(cs)
@@ -787,7 +790,7 @@ func (cs *State) dumpValidatorsAndVotePower() string {
 	ret := ""
 	validators := cs.Validators.Validators
 	for _, v := range validators {
-		ret += fmt.Sprintf("|%v:%v:%v|", v.Address.String()[:2], v.VotingPower, v.ProposerPriority)
+		ret += fmt.Sprintf("|%v:vp:%v prior:%2v|", v.Address.String()[:6], v.VotingPower, v.ProposerPriority)
 	}
 
 	return ret
@@ -795,7 +798,7 @@ func (cs *State) dumpValidatorsAndVotePower() string {
 
 func (cs *State) dumpIdentify() string {
 	pk, _ := cs.privValidator.GetPubKey()
-	return pk.Address().String()[0:2]
+	return pk.Address().String()[0:6]
 }
 
 func (cs *State) handleTimeout(ti timeoutInfo, rs cstypes.RoundState) {
@@ -1041,7 +1044,7 @@ func (cs *State) enterPropose(height int64, round int) {
 			address,
 			"privValidator",
 			cs.privValidator)
-		stdlog.Printf("round propose: height %v round %v %v %v \n", height, round, cs.dumpIdentify(), cs.dumpValidatorsAndVotePower())
+		stdlog.Printf("round propose: height/round: %v/%v proposer:%v %v \n", height, round, cs.dumpIdentify(), cs.dumpValidatorsAndVotePower())
 		cs.decideProposal(height, round)
 	} else {
 		logger.Info("enterPropose: Not our turn to propose",
@@ -1618,7 +1621,7 @@ func (cs *State) finalizeCommit(height int64) {
 	trace.GetElapsedInfo().AddInfo(trace.Round, fmt.Sprintf("%d", cs.Round))
 
 	// NewHeightStep!
-	cs.updateToState(stateCopy)
+	cs.updateToState(stateCopy, true)
 
 	fail.Fail() // XXX
 

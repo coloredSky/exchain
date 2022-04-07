@@ -1,0 +1,8 @@
+@startuml
+'https://plantuml.com/use-case-diagram
+consensus.finalizeCommit -> consensus.blockExec.ApplyBlock
+consensus.blockExec.ApplyBlock -> updateState
+updateState->IncrementProposerPriority
+
+hide footbox
+@enduml
