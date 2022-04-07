@@ -38,8 +38,8 @@ func (ak AccountKeeper) GetAccount(ctx sdk.Context, addr sdk.AccAddress) exporte
 
 	if data, gas, ok := ctx.Cache().GetAccount(ethcmn.BytesToAddress(addr)); ok {
 		ctx.GasMeter().ConsumeGas(gas, "x/auth/keeper/account.go/GetAccount")
-		if printLog {
-			fmt.Println("GetAccount", ethcmn.BytesToAddress(addr).String(), data == nil)
+		if printLog && data != nil {
+			fmt.Println("GetAccount", ethcmn.BytesToAddress(addr).String(), data.GetCoins().String())
 		}
 
 		if data == nil {
@@ -56,14 +56,14 @@ func (ak AccountKeeper) GetAccount(ctx sdk.Context, addr sdk.AccAddress) exporte
 
 	store := ctx.KVStore(ak.key)
 	bz := store.Get(types.AddressStoreKey(addr))
-	if printLog {
-		fmt.Println("getFromStore", hex.EncodeToString(bz))
-	}
 	if bz == nil {
 		ctx.Cache().UpdateAccount(addr, nil, len(bz), false)
 		return nil
 	}
 	acc := ak.decodeAccount(bz)
+	if printLog {
+		fmt.Println("getFromStore", hex.EncodeToString(bz), acc.GetCoins().String())
+	}
 	ctx.Cache().UpdateAccount(addr, acc, len(bz), false)
 	return acc
 }
