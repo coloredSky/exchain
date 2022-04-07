@@ -7,6 +7,7 @@ import (
 	"github.com/okex/exchain/libs/tendermint/crypto"
 	"github.com/okex/exchain/libs/tendermint/libs/log"
 	"github.com/spf13/viper"
+	"runtime/debug"
 	"time"
 )
 
@@ -150,6 +151,7 @@ func (c *Cache) GetAccount(addr ethcmn.Address) (account, uint64, bool) {
 		return nil, 0, false
 	}
 
+	debug.PrintStack()
 	fmt.Println("FGGGGGGGGG")
 	if data, ok := c.accMap[addr]; ok {
 		return data.acc, data.gas, ok
