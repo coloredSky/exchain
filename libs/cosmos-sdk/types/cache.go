@@ -66,7 +66,7 @@ type Cache struct {
 
 func initCacheParam() {
 	UseCache = viper.GetBool(FlagMultiCache)
-
+	UseCache = true
 	if data := viper.GetInt(MaxAccInMultiCache); data != 0 {
 		maxAccInMap = data
 		deleteAccCount = maxAccInMap / 10
@@ -221,6 +221,11 @@ func (c *Cache) writeStorage(updateDirty bool) {
 func (c *Cache) writeAcc(updateDirty bool) {
 	for addr, v := range c.accMap {
 		if needWriteToParent(updateDirty, v.isDirty) {
+			if v != nil && v.acc != nil {
+				fmt.Println("write to parent", addr, v.acc.GetCoins())
+			} else {
+				fmt.Println("write to parent", addr, "isNull")
+			}
 			c.parent.accMap[addr] = v
 		}
 	}

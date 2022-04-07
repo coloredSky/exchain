@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"fmt"
 	ethcmn "github.com/ethereum/go-ethereum/common"
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
 	"github.com/okex/exchain/libs/cosmos-sdk/x/auth/exported"
@@ -28,13 +29,19 @@ func (ak AccountKeeper) NewAccount(ctx sdk.Context, acc exported.Account) export
 
 // GetAccount implements sdk.AccountKeeper.
 func (ak AccountKeeper) GetAccount(ctx sdk.Context, addr sdk.AccAddress) exported.Account {
+	ethAddr := ethcmn.BytesToAddress(addr)
 	if data, gas, ok := ctx.Cache().GetAccount(ethcmn.BytesToAddress(addr)); ok {
 		ctx.GasMeter().ConsumeGas(gas, "x/auth/keeper/account.go/GetAccount")
 		if data == nil {
+			fmt.Println("fromCache", "data is nill", ethAddr.String())
 			return nil
 		}
 
+		fmt.Println("fromCache", ethAddr.String(), data.GetCoins().String())
 		return data.Copy().(exported.Account)
+	} else {
+
+		fmt.Println("not found in cache", ethAddr.String())
 	}
 
 	store := ctx.KVStore(ak.key)
