@@ -105,6 +105,7 @@ func (c *Cache) skip() bool {
 
 func (c *Cache) UpdateAccount(addr AccAddress, acc account, lenBytes int, isDirty bool) {
 	if c.skip() {
+		fmt.Println("fuck?????----")
 		return
 	}
 	ethAddr := ethcmn.BytesToAddress(addr.Bytes())
