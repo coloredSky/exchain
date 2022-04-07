@@ -39,7 +39,7 @@ func (ak AccountKeeper) GetAccount(ctx sdk.Context, addr sdk.AccAddress) exporte
 	if data, gas, ok := ctx.Cache().GetAccount(ethcmn.BytesToAddress(addr)); ok {
 		ctx.GasMeter().ConsumeGas(gas, "x/auth/keeper/account.go/GetAccount")
 		if printLog && data != nil {
-			fmt.Println("GetAccount", ethcmn.BytesToAddress(addr).String(), data.GetCoins().String())
+			//fmt.Println("GetAccount", ethcmn.BytesToAddress(addr).String(), data.GetCoins().String())
 		}
 
 		if data == nil {
@@ -49,7 +49,7 @@ func (ak AccountKeeper) GetAccount(ctx sdk.Context, addr sdk.AccAddress) exporte
 		return data.Copy().(exported.Account)
 	} else {
 		if printLog {
-			fmt.Println("GetAccount-not-find", ethcmn.BytesToAddress(addr).String(), data == nil)
+			//fmt.Println("GetAccount-not-find", ethcmn.BytesToAddress(addr).String(), data == nil)
 		}
 
 	}

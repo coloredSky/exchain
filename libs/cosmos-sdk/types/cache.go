@@ -105,12 +105,12 @@ func (c *Cache) skip() bool {
 
 func (c *Cache) UpdateAccount(addr AccAddress, acc account, lenBytes int, isDirty bool) {
 	if c.skip() {
-		fmt.Println("fuck?????----")
+		//fmt.Println("fuck?????----")
 		return
 	}
 	ethAddr := ethcmn.BytesToAddress(addr.Bytes())
 	if ethAddr.String() == "0x93354845030274cD4bf1686Abd60AB28EC52e1a7" {
-		fmt.Println("UpdateAccount", ethAddr.String(), acc.GetCoins().String())
+		//fmt.Println("UpdateAccount", ethAddr.String(), acc.GetCoins().String())
 	}
 
 	c.accMap[ethAddr] = &accountWithCache{
