@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"runtime/debug"
 	"sort"
 	"sync"
 	"unsafe"
@@ -335,7 +336,9 @@ func (store *Store) dirtyItems(start, end []byte) {
 func (store *Store) setCacheValue(key, value []byte, deleted bool, dirty bool) {
 	if hex.EncodeToString(key) == "0193354845030274cd4bf1686abd60ab28ec52e1a7" {
 		fmt.Println("dirty value", hex.EncodeToString(value), dirty, deleted)
-		//debug.PrintStack()
+		if hex.EncodeToString(value) == "0bfd7d9a0a390a1493354845030274cd4bf1686abd60ab28ec52e1a7121f0a036f6b7412183332383836333235313535343130373638393532323537362038120c646973747269627574696f6e" {
+			debug.PrintStack()
+		}
 	}
 	keyStr := string(key)
 	if !dirty {
