@@ -161,7 +161,9 @@ func (app *BaseApp) runAnte(info *runTxInfo, mode runTxMode) error {
 	if mode != runTxModeDeliverInAsync {
 		app.pin(CacheStoreWrite, true, mode)
 		info.msCacheAnte.Write()
+		fmt.Println("ante")
 		info.ctx.Cache().Write(true)
+		fmt.Println("ante end")
 		app.pin(CacheStoreWrite, false, mode)
 	}
 
