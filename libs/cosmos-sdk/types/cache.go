@@ -222,9 +222,14 @@ func (c *Cache) writeAcc(updateDirty bool) {
 	for addr, v := range c.accMap {
 		if needWriteToParent(updateDirty, v.isDirty) {
 			if v != nil && v.acc != nil {
-				fmt.Println("write to parent", addr, v.acc.GetCoins())
+				if addr.String() == "0xC82854BBd93E996E7d279F5038dD70E71da7f026" {
+					fmt.Println("	write to parent", addr, v.acc.GetCoins())
+				}
+
 			} else {
-				fmt.Println("write to parent", addr, "isNull")
+				if addr.String() == "0xC82854BBd93E996E7d279F5038dD70E71da7f026" {
+					fmt.Println("write to parent", addr, "isNull")
+				}
 			}
 			c.parent.accMap[addr] = v
 		}
