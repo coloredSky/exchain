@@ -65,7 +65,7 @@ func (ak AccountKeeper) GetAccount(ctx sdk.Context, addr sdk.AccAddress) exporte
 	acc := ak.decodeAccount(bz)
 
 	if printLog {
-		fmt.Println("updateCache", ethAddr.String(), acc.GetCoins().String())
+		fmt.Println("updateCache", ethAddr.String(), "coin", acc.GetCoins().String(), "coin end")
 	}
 	ctx.Cache().UpdateAccount(addr, acc, len(bz), false)
 	return acc
