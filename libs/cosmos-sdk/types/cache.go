@@ -7,6 +7,7 @@ import (
 	"github.com/okex/exchain/libs/tendermint/crypto"
 	"github.com/okex/exchain/libs/tendermint/libs/log"
 	"github.com/spf13/viper"
+	"runtime/debug"
 	"time"
 )
 
@@ -223,7 +224,8 @@ func (c *Cache) writeAcc(updateDirty bool) {
 		if needWriteToParent(updateDirty, v.isDirty) {
 			if v != nil && v.acc != nil {
 				if addr.String() == "0xC82854BBd93E996E7d279F5038dD70E71da7f026" {
-					fmt.Println("	write to parent", addr, v.acc.GetCoins())
+					fmt.Println("write to parent", addr, v.acc.GetCoins())
+					debug.PrintStack()
 				}
 
 			} else {
