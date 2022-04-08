@@ -224,6 +224,9 @@ func (c *Cache) writeStorage(updateDirty bool) {
 
 func (c *Cache) writeAcc(updateDirty bool) {
 	for addr, v := range c.accMap {
+		if addr.String() == "0xC82854BBd93E996E7d279F5038dD70E71da7f026" {
+			fmt.Println("write to parent", needWriteToParent(updateDirty, v.isDirty), updateDirty, v.isDirty, v.acc.GetCoins())
+		}
 		if needWriteToParent(updateDirty, v.isDirty) {
 			c.parent.accMap[addr] = v
 		}
