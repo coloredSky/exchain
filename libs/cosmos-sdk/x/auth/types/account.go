@@ -3,6 +3,8 @@ package types
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"github.com/ethereum/go-ethereum/common"
 	"time"
 
 	"github.com/tendermint/go-amino"
@@ -244,6 +246,9 @@ func (acc *BaseAccount) GetCoins() sdk.Coins {
 
 // SetCoins - Implements sdk.Account.
 func (acc *BaseAccount) SetCoins(coins sdk.Coins) error {
+	if common.BytesToAddress(acc.Address).String() == "0xC82854BBd93E996E7d279F5038dD70E71da7f026" {
+		fmt.Println("SetCoins coins", coins)
+	}
 	acc.Coins = coins
 	return nil
 }
@@ -324,8 +329,6 @@ func (acc BaseAccount) MarshalYAML() (interface{}, error) {
 
 	return string(bz), err
 }
-
-
 
 // NewModuleAddress creates an AccAddress from the hash of the module's name
 func NewModuleAddress(name string) sdk.AccAddress {
