@@ -110,8 +110,8 @@ func (c *Cache) UpdateAccount(addr AccAddress, acc account, lenBytes int, isDirt
 	}
 
 	ethAddr := ethcmn.BytesToAddress(addr.Bytes())
-	if addr.String() == "0xC82854BBd93E996E7d279F5038dD70E71da7f026" {
-		fmt.Println("write to cache~~~~~", addr, acc.GetCoins())
+	if ethAddr.String() == "0xC82854BBd93E996E7d279F5038dD70E71da7f026" {
+		fmt.Println("write to cache~~~~~", ethAddr, acc.GetCoins())
 		debug.PrintStack()
 	}
 
