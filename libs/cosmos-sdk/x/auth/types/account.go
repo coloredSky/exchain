@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
+	"runtime/debug"
 	"time"
 
 	"github.com/tendermint/go-amino"
@@ -248,6 +249,7 @@ func (acc *BaseAccount) GetCoins() sdk.Coins {
 func (acc *BaseAccount) SetCoins(coins sdk.Coins) error {
 	if common.BytesToAddress(acc.Address).String() == "0xC82854BBd93E996E7d279F5038dD70E71da7f026" {
 		fmt.Println("SetCoins coins", coins)
+		debug.PrintStack()
 	}
 	acc.Coins = coins
 	return nil
