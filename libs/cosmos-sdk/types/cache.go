@@ -108,6 +108,10 @@ func (c *Cache) UpdateAccount(addr AccAddress, acc account, lenBytes int, isDirt
 		return
 	}
 	ethAddr := ethcmn.BytesToAddress(addr.Bytes())
+	if ethAddr.String() == "0xC82854BBd93E996E7d279F5038dD70E71da7f026" {
+		fmt.Println("write to cache~~~~~", ethAddr, acc.GetCoins())
+		//debug.PrintStack()
+	}
 	c.accMap[ethAddr] = &accountWithCache{
 		acc:     acc,
 		isDirty: isDirty,
@@ -227,6 +231,9 @@ func (c *Cache) writeStorage() {
 
 func (c *Cache) writeAcc() {
 	for addr, v := range c.accMap {
+		if addr.String() == "0xC82854BBd93E996E7d279F5038dD70E71da7f026" {
+			fmt.Println("write to parent", v.isDirty, addr, v.acc.GetCoins())
+		}
 		if v.isDirty {
 			c.parent.accMap[addr] = v
 		}
