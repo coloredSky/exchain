@@ -1,0 +1,10 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+autonumber
+
+MyNode -> Peers: VoteSetMaj23Message
+Peers -> MyNode: VoteSetBitsMessage
+note left:ApplyVoteSetBitsMessage()\nupdates the peer state \nfor the bit-array of votes
+
+@enduml

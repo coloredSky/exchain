@@ -236,9 +236,11 @@ func (avd AccountAnteDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simulate 
 		}
 
 		// account would not be updated
-		ctx, err = nonceVerification(ctx, acc, msgEthTx)
-		if err != nil {
-			return ctx, err
+		if !ctx.IsCheckTx() {
+			ctx, err = nonceVerification(ctx, acc, msgEthTx)
+			if err != nil {
+				return ctx, err
+			}
 		}
 
 		// consume gas for compatible

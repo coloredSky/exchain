@@ -1,0 +1,9 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+autonumber
+Proposer->Peers:BlockPartMessage
+note left:Proposer call \ndefaultDecideProposal()\ngossipDataRoutine\nsend block part
+note right:addProposalBlockPart()
+Peers->Others:BlockPartMessage
+@enduml

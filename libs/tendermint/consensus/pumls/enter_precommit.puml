@@ -1,0 +1,21 @@
+@startuml
+'https://plantuml.com/activity-diagram-beta
+start
+if (cs.Votes.Prevotes(round) \n > 2/3) then (no)
+  :sign and vote \nprecommit nil;
+  note : no polka
+else if (+2/3 prevote nil) then (yes)
+  :cs.LockedBlock=nil;
+  :sign and vote \nprecommit nil;
+  note : +2/3 prevoted nil.\n Unlock and \n precommit nil.
+else if (cs.LockedBlock equal to \n vote block) then (yes)
+  :sign and \n vote LockedBlock;
+else if (cs.ProposalBlock \n equal to vote block) then (yes)
+  :lock proposal block\n sign and vote \n proposal block;
+else if () then()
+  :unlock the block, \nprecommit nil;
+  note:we don't\nknow this\nround polka
+endif
+
+stop
+@enduml

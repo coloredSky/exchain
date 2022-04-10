@@ -1,0 +1,10 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+autonumber
+
+MyNode -> Peers: ProposalPOLMessage
+note left: lets peer know \nwhich POL votes \nwe have so far.
+note right:ApplyProposalPOLMessage()\nupdate peer state for the \nnew proposal POL
+
+@enduml

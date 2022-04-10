@@ -1,0 +1,10 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+autonumber
+MyNode->Peers:HasVoteMessage
+MyNode->Peers:VoteMessage
+note left:gossipVoteRoutine
+note right:gossipVoteRoutine\ngossipVotesForHeight()
+Peers->Others:VoteMessage
+@enduml

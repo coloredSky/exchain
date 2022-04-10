@@ -1,0 +1,9 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+autonumber
+Proposer->Peers:ProposalMessage
+note left:Proposer call \ndefaultDecideProposal()\ngossipDataRoutine\nsend proposal
+note right:defaultSetProposal()
+Peers->Others:ProposalMessage
+@enduml

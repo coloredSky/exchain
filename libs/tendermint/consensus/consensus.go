@@ -841,6 +841,7 @@ func (cs *State) handleTimeout(ti timeoutInfo, rs cstypes.RoundState) {
 		cs.eventBus.PublishEventTimeoutWait(cs.RoundStateEvent())
 		cs.enterPrecommit(ti.Height, ti.Round)
 		cs.enterNewRound(ti.Height, ti.Round+1)
+		stdlog.Printf("round precommit: height/round: %v/%v proposer:%v %v \n", ti.Height, ti.Round+1, cs.dumpIdentify(), cs.dumpValidatorsAndVotePower())
 	default:
 		panic(fmt.Sprintf("Invalid timeout step: %v", ti.Step))
 	}
@@ -2024,6 +2025,7 @@ func (cs *State) addVote(
 		case cs.Round < vote.Round && prevotes.HasTwoThirdsAny():
 			// Round-skip if there is any 2/3+ of votes ahead of us
 			cs.enterNewRound(height, vote.Round)
+			stdlog.Printf("round precommit: height1/round: %v/%v proposer:%v %v \n", height, vote.Round, cs.dumpIdentify(), cs.dumpValidatorsAndVotePower())
 		case cs.Round == vote.Round && cstypes.RoundStepPrevote <= cs.Step: // current round
 			blockID, ok := prevotes.TwoThirdsMajority()
 			if ok && (cs.isProposalComplete() || len(blockID.Hash) == 0) {
@@ -2046,6 +2048,7 @@ func (cs *State) addVote(
 		if ok {
 			// Executed as TwoThirdsMajority could be from a higher round
 			cs.enterNewRound(height, vote.Round)
+			stdlog.Printf("round precommit: height2/round: %v/%v %v proposer:%v %v \n", height, cs.Height, vote.Round, cs.dumpIdentify(), cs.dumpValidatorsAndVotePower())
 			cs.enterPrecommit(height, vote.Round)
 			if len(blockID.Hash) != 0 {
 				cs.enterCommit(height, vote.Round)
@@ -2057,6 +2060,7 @@ func (cs *State) addVote(
 			}
 		} else if cs.Round <= vote.Round && precommits.HasTwoThirdsAny() {
 			cs.enterNewRound(height, vote.Round)
+			stdlog.Printf("round precommit: height3/round: %v/%v proposer:%v %v \n", height, vote.Round, cs.dumpIdentify(), cs.dumpValidatorsAndVotePower())
 			cs.enterPrecommitWait(height, vote.Round)
 		}
 

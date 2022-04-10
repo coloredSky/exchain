@@ -1,0 +1,17 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+autonumber
+
+MyNode -> Peers: NewValidBlockMessage
+note left:observes a valid block B in some round r
+note right:ApplyNewValidBlockMessage()
+
+ref over Peers
+  gossipDateRoutine
+  send BlockPartMessage
+end ref
+
+Peers->MyNode: BlockPartMessage
+
+@enduml

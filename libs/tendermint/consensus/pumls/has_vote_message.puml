@@ -1,0 +1,8 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+autonumber
+MyNode->Peers: HasVoteMessage
+note left: vote a particular block
+note right: ApplyHasVoteMessage() \nupdate the peer state\nfor the new vote
+@enduml

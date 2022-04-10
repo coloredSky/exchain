@@ -1,0 +1,30 @@
+@startuml
+'https://plantuml.com/component-diagram
+
+
+package "Messages" {
+  left to right direction
+  ' top to bottom direction
+
+  cloud "DataChannel"{
+    cloud ProposalMessage
+    cloud ProposalPOLMessage
+    cloud BlockPartMessage
+  }
+
+  cloud "VoteChannel"{
+    cloud VoteMessage
+  }
+  cloud "VoteSetBitsChannel"{
+    cloud VoteSetBitsMessage
+  }
+
+  cloud "StateChannel" {
+    cloud NewRoundStepMessage
+    cloud NewValidBlockMessage
+    cloud HasVoteMessage
+    cloud VoteSetMaj23Message
+  }
+}
+
+@enduml

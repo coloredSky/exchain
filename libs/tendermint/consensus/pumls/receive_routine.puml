@@ -1,0 +1,55 @@
+@startuml
+'https://plantuml.com/component-diagram
+title receiveRoutine
+start
+@startuml
+start
+switch (Message?)
+case (internalMsgQueue)
+    :sync wal;
+    :handleMsg();
+case ( peerMsgQueue )
+    :write wal;
+    :handleMsg();
+case (timeOutTicker )
+    :write wal;
+    :handleTimeout();
+case ( txNotifier )
+    :handleTxAvailable();
+endswitch
+stop
+
+partition "handleMsg" {
+start
+switch (Message?)
+case (ProposalMessage)
+    :defaultSetProposal;
+case (BlockPartMessage)
+    :addProposalBlockPart();
+case (VoteMessage) then(yes)
+    :addVote();
+endswitch
+stop
+}
+
+partition "handleTimeout" {
+start
+if (check height/round/step) then(yes)
+    switch (timeout message's step?)
+    case (RoundStepNewHeight)
+        :enterNewHeight();
+    case (RoundStepNewRound)
+        :enterPropose();
+    case (RoundStepPropose)
+        :enterPrevote();
+    case (RoundStepPrevoteWait)
+        :enterPrecommit();
+    case (RoundStepPrecommitWait)
+        :enterPrecommit();
+        :enterNewRound();
+    endswitch
+endif
+stop
+}
+
+@enduml

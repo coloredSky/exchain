@@ -1,0 +1,17 @@
+@startuml
+'https://plantuml.com/activity-diagram-beta
+
+start
+if (consensus.LockedBlock != nil) then (yes)
+  :vote the locked one;
+else if (consensus.ProposalBlock == nil) then (yes)
+  :vote nil;
+else if (consensus.ProposalBlock invalid) then (yes)
+  :vote nil;
+else if (consensus.ProposalBloc valid) then (yes)
+  :vote consensus.ProposalBlock;
+endif
+
+stop
+
+@enduml

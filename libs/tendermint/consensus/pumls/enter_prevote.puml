@@ -1,0 +1,9 @@
+@startuml
+state Propose : enterNewRound
+Propose --> Precommit : Enter (CreateEmptyBlocks):\n from enterNewRound(height,round)
+Propose --> Precommit : Enter (CreateEmptyBlocks, \n CreateEmptyBlocksInterval > 0 ) \n after enterNewRound(height,round),\n after timeout of CreateEmptyBlocksInterval
+Propose --> Precommit : Enter (!CreateEmptyBlocks) : \nafter enterNewRound(height,round),\n once txs are in the mempool
+state Precommit {
+state enterPrecommit: consensus.scheduleTimeout(RoundStepPrecommit)\nisPrecommitr:defaultDecideProposal
+}
+@enduml

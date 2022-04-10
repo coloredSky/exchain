@@ -1,0 +1,15 @@
+@startuml
+'https://plantuml.com/component-diagram
+package "Reactor" {
+  left to right direction
+  rectangle "State"{
+    rectangle "RoundState"{
+        [Height\nRound\nStep\n...]
+    }
+    [peerMsgQueue\ninternalMsgQueue\ntimeoutTicker]
+    [receiveRoutine()\nhandleMsg()\nhandleTimeout()\nscheduleRound0()\nenterNewRound()\nenterProposal()\nenterPrevote\nenterPrecommit\nenterCommit\nfinalzieCommit\n...]
+  }
+  [peerMsgQueue\ninternalMsgQueue\ntimeoutTicker]
+}
+
+@enduml

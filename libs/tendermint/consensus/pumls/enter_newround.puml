@@ -1,0 +1,13 @@
+@startuml
+state start1 <<start>>
+state start2 <<start>>
+state start3 <<start>>
+state start4 <<start>>
+state start5 <<start>>
+state NewRound: Used internally by \nhandleTimeout and handleMsg to \nmake state transitions
+start1 --> NewRound : Enter: \n`timeoutNewHeight` \nby startTime \n(commitTime+timeoutCommit),
+start2 --> NewRound : if \nSkipTimeoutCommit==true, \nafter receiving all precommits \nfrom (height,round-1)
+start3 --> NewRound : Enter: \n`timeoutPrecommits` \nafter any +2/3 precommits \nfrom (height,round-1)
+start4 --> NewRound : Enter: \n+2/3 precommits for nil \nat (height,round-1)
+start5 --> NewRound : Enter: \n+2/3 prevotes any \nor +2/3 precommits \nfor block or any \nfrom (height, round)
+@enduml
