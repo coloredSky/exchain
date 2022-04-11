@@ -3,6 +3,7 @@
 
 autonumber
 MyNode->Peers:HasVoteMessage
+note left: state channel \nmessage
 MyNode->Peers:VoteMessage
 note left:gossipVoteRoutine
 note right:gossipVoteRoutine\ngossipVotesForHeight()
