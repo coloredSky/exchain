@@ -1,14 +1,15 @@
 package base
 
 import (
+	"math/big"
+	"reflect"
+	"testing"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/okex/exchain/app/crypto/ethsecp256k1"
 	ethereumTx "github.com/okex/exchain/app/types"
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
 	"github.com/okex/exchain/x/evm/types"
-	"math/big"
-	"reflect"
-	"testing"
 )
 
 func Test_getSender(t *testing.T) {
@@ -25,8 +26,8 @@ func Test_getSender(t *testing.T) {
 	msg.Sign(chainIDEpoch, privateKey.ToECDSA())
 
 	ctxWithFrom := sdk.Context{}
-	ctxWithFrom = ctxWithFrom.WithIsCheckTx(true)
-	ctxWithFrom = ctxWithFrom.WithFrom(sender.String())
+	ctxWithFrom.SetIsCheckTx(true)
+	ctxWithFrom.SetFrom(sender.String())
 
 	type args struct {
 		ctx          *sdk.Context
@@ -39,8 +40,8 @@ func Test_getSender(t *testing.T) {
 		wantSender common.Address
 		wantErr    bool
 	}{
-		{"1. get sender from verify sig", args{ctx: &sdk.Context{}, chainIDEpoch: chainIDEpoch, msg: &msg}, sender, false},
-		{"2. get sender from context", args{ctx: &ctxWithFrom, chainIDEpoch: chainIDEpoch, msg: &msg}, sender, false},
+		{"1. get sender from verify sig", args{ctx: &sdk.Context{}, chainIDEpoch: chainIDEpoch, msg: msg}, sender, false},
+		{"2. get sender from context", args{ctx: &ctxWithFrom, chainIDEpoch: chainIDEpoch, msg: msg}, sender, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

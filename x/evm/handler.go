@@ -14,7 +14,7 @@ import (
 // NewHandler returns a handler for Ethermint type messages.
 func NewHandler(k *Keeper) sdk.Handler {
 	return func(ctx sdk.Context, msg sdk.Msg) (result *sdk.Result, err error) {
-		ctx = ctx.WithEventManager(sdk.NewEventManager())
+		ctx.SetEventManager(sdk.NewEventManager())
 
 		defer func() {
 			if cfg.DynamicConfig.GetMaxGasUsedPerBlock() < 0 {
@@ -57,9 +57,9 @@ func NewHandler(k *Keeper) sdk.Handler {
 			}
 		}()
 
-		evmtx, ok := msg.(types.MsgEthereumTx)
+		evmtx, ok := msg.(*types.MsgEthereumTx)
 		if ok {
-			result, err = handleMsgEthereumTx(ctx, k, &evmtx)
+			result, err = handleMsgEthereumTx(ctx, k, evmtx)
 			if err != nil {
 				err = sdkerrors.New(types.ModuleName, types.CodeSpaceEvmCallFailed, err.Error())
 			}
@@ -73,7 +73,7 @@ func NewHandler(k *Keeper) sdk.Handler {
 
 func getMsgCallFnSignature(msg sdk.Msg) ([]byte, int) {
 	switch msg := msg.(type) {
-	case types.MsgEthereumTx:
+	case *types.MsgEthereumTx:
 		return msg.GetTxFnSignatureInfo()
 	default:
 		return nil, 0
@@ -95,5 +95,3 @@ func handleMsgEthereumTx(ctx sdk.Context, k *Keeper, msg *types.MsgEthereumTx) (
 	// core logical to handle ethereum tx
 	return txs.TransitionEvmTx(tx, msg)
 }
-
-

@@ -3,6 +3,8 @@ package keeper
 import (
 	"encoding/binary"
 	"fmt"
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 	ethcmn "github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -14,7 +16,6 @@ import (
 	"github.com/okex/exchain/x/evm/types"
 	"github.com/okex/exchain/x/evm/watcher"
 	"github.com/okex/exchain/x/params"
-	"math/big"
 )
 
 // Keeper wraps the CommitStateDB, allowing us to pass in SDK context while adhering
@@ -53,6 +54,8 @@ type Keeper struct {
 
 	// cache chain config
 	cci *chainConfigInfo
+
+	hooks types.EvmHooks
 }
 
 type chainConfigInfo struct {
@@ -74,7 +77,6 @@ func NewKeeper(
 		paramSpace = paramSpace.WithKeyTable(types.ParamKeyTable())
 	}
 
-	types.InitTxTraces()
 	err := initInnerDB()
 	if err != nil {
 		panic(err)
@@ -126,6 +128,8 @@ func NewSimulateKeeper(
 		LogSize:       0,
 		Watcher:       watcher.NewWatcher(nil),
 		Ada:           ada,
+
+		cci: &chainConfigInfo{},
 	}
 }
 
@@ -135,7 +139,7 @@ func (k Keeper) OnAccountUpdated(acc auth.Account) {
 }
 
 // Logger returns a module-specific logger.
-func (k Keeper) GenerateCSDBParams() types.CommitStateDBParams {
+func (k *Keeper) GenerateCSDBParams() types.CommitStateDBParams {
 	return types.CommitStateDBParams{
 		StoreKey:      k.storeKey,
 		ParamSpace:    k.paramSpace,
@@ -313,4 +317,35 @@ func (k *Keeper) IsAddressBlocked(ctx sdk.Context, addr sdk.AccAddress) bool {
 func (k *Keeper) IsContractInBlockedList(ctx sdk.Context, addr sdk.AccAddress) bool {
 	csdb := types.CreateEmptyCommitStateDB(k.GenerateCSDBParams(), ctx)
 	return csdb.IsContractInBlockedList(addr.Bytes())
+}
+
+// SetHooks sets the hooks for the EVM module
+// It should be called only once during initialization, it panics if called more than once.
+func (k *Keeper) SetHooks(hooks types.EvmHooks) *Keeper {
+	if k.hooks != nil {
+		panic("cannot set evm hooks twice")
+	}
+	k.hooks = hooks
+
+	return k
+}
+
+// ResetHooks resets the hooks for the EVM module
+func (k *Keeper) ResetHooks() *Keeper {
+	k.hooks = nil
+
+	return k
+}
+
+// GetHooks gets the hooks for the EVM module
+func (k *Keeper) GetHooks() types.EvmHooks {
+	return k.hooks
+}
+
+// CallEvmHooks delegate the call to the hooks. If no hook has been registered, this function returns with a `nil` error
+func (k *Keeper) CallEvmHooks(ctx sdk.Context, from common.Address, to *common.Address, receipt *ethtypes.Receipt) error {
+	if k.hooks == nil {
+		return nil
+	}
+	return k.hooks.PostTxProcessing(ctx, from, to, receipt)
 }
