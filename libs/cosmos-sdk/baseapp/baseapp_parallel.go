@@ -500,7 +500,7 @@ func newAsyncWorkGroup(isAsync bool) *asyncWorkGroup {
 		resultCh: make(chan *executeResult, 20000),
 		resultCb: nil,
 
-		taskCh:  make(chan *task, maxGoRountine),
+		taskCh:  make(chan *task, 20000),
 		taskRun: nil,
 	}
 }
