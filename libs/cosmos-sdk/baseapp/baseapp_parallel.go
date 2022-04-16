@@ -2,7 +2,6 @@ package baseapp
 
 import (
 	"bytes"
-	"container/heap"
 	"encoding/binary"
 	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -486,8 +485,6 @@ type asyncWorkGroup struct {
 
 	taskCh  chan *task
 	taskRun func([]byte, int)
-
-	initHeap IntHeap
 }
 
 func newAsyncWorkGroup(isAsync bool) *asyncWorkGroup {
@@ -500,9 +497,8 @@ func newAsyncWorkGroup(isAsync bool) *asyncWorkGroup {
 		resultCh: make(chan *executeResult, 20000),
 		resultCb: nil,
 
-		taskCh:   make(chan *task, maxGoRountine),
-		taskRun:  nil,
-		initHeap: make([]int, 0),
+		taskCh:  make(chan *task, maxGoRountine),
+		taskRun: nil,
 	}
 }
 
@@ -545,14 +541,11 @@ func (a *asyncWorkGroup) Push(item *executeResult) {
 }
 
 func (a *asyncWorkGroup) AddTask(index int) {
-	heap.Push(&a.initHeap, index)
-	tt := heap.Pop(&a.initHeap)
-	go func() {
-		a.taskCh <- &task{
-			txBytes: a.txsWithIndex[tt.(int)],
-			index:   index,
-		}
-	}()
+
+	a.taskCh <- &task{
+		txBytes: a.txsWithIndex[index],
+		index:   index,
+	}
 }
 
 func (a *asyncWorkGroup) Start() {
@@ -812,40 +805,4 @@ func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
 	f.mu.Unlock()
 
 	f.cc.deleteFeeAcc()
-}
-
-// An IntHeap is a min-heap of ints.
-type IntHeap []int
-
-func (h IntHeap) Len() int           { return len(h) }
-func (h IntHeap) Less(i, j int) bool { return h[i] < h[j] }
-func (h IntHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
-
-func (h *IntHeap) Push(x interface{}) {
-	// Push and Pop use pointer receivers because they modify the slice's length,
-	// not just its contents.
-	*h = append(*h, x.(int))
-}
-
-func (h *IntHeap) Pop() interface{} {
-	old := *h
-	n := len(old)
-	x := old[n-1]
-	*h = old[0 : n-1]
-	return x
-}
-
-// This example inserts several ints into an IntHeap, checks the minimum,
-// and removes them in order of priority.
-func Example_intHeap() {
-	h := &IntHeap{2, 1, 5}
-	heap.Init(h)
-	heap.Push(h, 3)
-	fmt.Printf("minimum: %d\n", (*h)[0])
-	for h.Len() > 0 {
-		fmt.Printf("%d ", heap.Pop(h))
-	}
-	// Output:
-	// minimum: 1
-	// 1 2 3 5
 }
