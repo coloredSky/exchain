@@ -17,7 +17,7 @@ import (
 
 var (
 	txIndexLen    = 4
-	maxGoRountine = 8
+	maxGoRountine = 16
 )
 
 type extraDataForTx struct {
@@ -54,42 +54,31 @@ func (app *BaseApp) getExtraDataByTxs(txs [][]byte) {
 		para.workgroup.isrunning = make([]bool, para.txSize)
 	}
 
-	txJobChan := make(chan task)
-	doneChan := make(chan struct{}, para.txSize)
-
-	for index := 0; index < maxGoRountine; index++ {
-		go func(ch chan task) {
-			for t := range ch {
-				tx, err := app.txDecoder(t.txBytes)
-				if err != nil {
-					para.extraTxsInfo[index] = &extraDataForTx{
-						decodeErr: err,
-					}
-					doneChan <- struct{}{}
-					return
+	var wg sync.WaitGroup
+	for index, txBytes := range txs {
+		wg.Add(1)
+		index := index
+		txBytes := txBytes
+		go func() {
+			defer wg.Done()
+			tx, err := app.txDecoder(txBytes)
+			if err != nil {
+				para.extraTxsInfo[index] = &extraDataForTx{
+					decodeErr: err,
 				}
-				coin, isEvm, s, toAddr := app.getTxFee(app.getContextForTx(runTxModeSimulate, t.txBytes), tx)
-				para.extraTxsInfo[t.index] = &extraDataForTx{
-					fee:   coin,
-					isEvm: isEvm,
-					from:  s,
-					to:    toAddr,
-					stdTx: tx,
-				}
-				doneChan <- struct{}{}
+				return
 			}
-		}(txJobChan)
+			coin, isEvm, s, toAddr := app.getTxFee(app.getContextForTx(runTxModeDeliver, txBytes), tx)
+			para.extraTxsInfo[index] = &extraDataForTx{
+				fee:   coin,
+				isEvm: isEvm,
+				from:  s,
+				to:    toAddr,
+				stdTx: tx,
+			}
+		}()
 	}
-	for index, v := range txs {
-		txJobChan <- task{
-			txBytes: v,
-			index:   index,
-		}
-	}
-	for index := 0; index < para.txSize; index++ {
-		<-doneChan
-	}
-	close(txJobChan)
+	wg.Wait()
 }
 
 var (
