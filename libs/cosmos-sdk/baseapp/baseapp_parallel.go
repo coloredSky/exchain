@@ -16,8 +16,8 @@ import (
 )
 
 var (
-	txIndexLen    = 4
-	maxGoRountine = 16
+	txIndexLen = 4
+	//maxGoRountine = 16
 )
 
 type extraDataForTx struct {
@@ -481,7 +481,7 @@ type asyncWorkGroup struct {
 	resultCh chan *executeResult
 	resultCb func(*executeResult)
 
-	taskCh  chan *task
+	//taskCh  chan *task
 	taskRun func([]byte, int)
 }
 
@@ -495,7 +495,7 @@ func newAsyncWorkGroup(isAsync bool) *asyncWorkGroup {
 		resultCh: make(chan *executeResult, 20000),
 		resultCb: nil,
 
-		taskCh:  make(chan *task, 20000),
+		//taskCh:  make(chan *task, 20000),
 		taskRun: nil,
 	}
 }
@@ -540,26 +540,12 @@ func (a *asyncWorkGroup) Push(item *executeResult) {
 
 func (a *asyncWorkGroup) AddTask(tx []byte, index int) {
 	a.setTxStatus(index, true)
-	a.taskCh <- &task{
-		txBytes: tx,
-		index:   index,
-	}
+	a.taskRun(tx, index)
 }
 
 func (a *asyncWorkGroup) Start() {
 	if !a.isAsync {
 		return
-	}
-	for index := 0; index < maxGoRountine; index++ {
-		go func() {
-			for true {
-				select {
-				case task := <-a.taskCh:
-					a.taskRun(task.txBytes, task.index)
-				}
-			}
-		}()
-
 	}
 
 	go func() {
