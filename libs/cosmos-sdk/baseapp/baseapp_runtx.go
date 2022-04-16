@@ -240,6 +240,9 @@ func (app *BaseApp) runTx_defer_recover(r interface{}, info *runTxInfo) error {
 
 func (app *BaseApp) asyncDeliverTx(txWithIndex []byte, txIndex int) {
 
+	if app.parallelTxManage.workgroup.close {
+		return
+	}
 	txStatus := app.parallelTxManage.extraTxsInfo[txIndex]
 
 	if txStatus.stdTx == nil {

@@ -200,6 +200,7 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 	txSize := len(txs)
 	pm.txSize = txSize
 	pm.haveCosmosTxInBlock = false
+	pm.workgroup.close = false
 
 	if txSize == 0 {
 		return make([]*abci.ResponseDeliverTx, 0)
@@ -368,6 +369,7 @@ func (app *BaseApp) runTxs() []*abci.ResponseDeliverTx {
 	if pm.txSize > 0 {
 		//waiting for call back
 		<-signal
+		pm.workgroup.close = true
 		app.fixFeeCollector(pm.cms)
 		receiptsLogs := app.endParallelTxs()
 		for index, v := range receiptsLogs {
@@ -469,6 +471,7 @@ func newExecuteResult(r abci.ResponseDeliverTx, ms sdk.CacheMultiStore, counter 
 }
 
 type asyncWorkGroup struct {
+	close        bool
 	txsWithIndex [][]byte
 
 	isAsync       bool
