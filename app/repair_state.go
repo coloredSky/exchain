@@ -165,7 +165,7 @@ func doRepair(ctx *server.Context, state sm.State, stateStoreDB dbm.DB,
 	blockExec.SetIsAsyncDeliverTx(viper.GetBool(sm.FlagParalleledTx))
 	blockExec.SetEventBus(eventBus)
 	global.SetGlobalHeight(startHeight + 1)
-	for height := startHeight + 1; height <= latestHeight; height++ {
+	for height := startHeight + 1; height <= latestHeight-1; height++ {
 		repairBlock, repairBlockMeta := loadBlock(height, dataDir)
 		state, _, err = blockExec.ApplyBlock(state, repairBlockMeta.BlockID, repairBlock)
 		panicError(err)

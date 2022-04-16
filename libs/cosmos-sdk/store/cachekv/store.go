@@ -76,18 +76,27 @@ func (store *Store) Get(key []byte) (value []byte) {
 	return value
 }
 
-func (store *Store) IteratorCache(cb func(key, value []byte, isDirty bool, isDelete bool, sKey types.StoreKey) bool, sKey types.StoreKey) bool {
+func (store *Store) IteratorCache(dirty bool, cb func(key, value []byte, isDirty bool, isDelete bool, sKey types.StoreKey) bool, sKey types.StoreKey) bool {
 	if cb == nil {
 		return true
 	}
 	store.mtx.Lock()
 	defer store.mtx.Unlock()
 
-	for key, v := range store.dirty {
-		if !cb([]byte(key), v.value, v.dirty, v.deleted, sKey) {
-			return false
+	if dirty {
+		for key, v := range store.dirty {
+			if !cb([]byte(key), v.value, v.dirty, v.deleted, sKey) {
+				return false
+			}
+		}
+	} else {
+		for key, v := range store.readList {
+			if !cb([]byte(key), v, false, false, sKey) {
+				return false
+			}
 		}
 	}
+
 	return true
 }
 
@@ -96,9 +105,9 @@ func (store *Store) GetRWSet(rSet map[string][]byte, wSet map[string][]byte) {
 		rSet[k] = v
 	}
 	for k, v := range store.dirty {
-		if !bytes.Equal(v.value, rSet[k]) {
-			wSet[k] = v.value
-		}
+		//if !bytes.Equal(v.value, rSet[k]) {
+		wSet[k] = v.value
+		//}
 	}
 }
 
