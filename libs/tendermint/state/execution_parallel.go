@@ -22,7 +22,6 @@ func execBlockOnProxyAppAsync(
 ) (*ABCIResponses, error) {
 	var validTxs, invalidTxs = 0, 0
 
-	proxyAppConn.ParallelTxs(transTxsToBytes(block.Txs), true)
 	abciResponses := NewABCIResponses(block)
 
 	commitInfo, byzVals := getBeginBlockValidatorInfo(block, stateDB)

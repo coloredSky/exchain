@@ -48,7 +48,6 @@ func getRealTxByte(txByteWithIndex []byte) []byte {
 func (app *BaseApp) getExtraDataByTxs(txs [][]byte) {
 	para := app.parallelTxManage
 	if para.txSize > len(para.extraTxsInfo) {
-		para.txByteWithIndex = make([][]byte, para.txSize)
 		para.txReps = make([]*executeResult, para.txSize)
 		para.extraTxsInfo = make([]*extraDataForTx, para.txSize)
 		para.workgroup.runningStatus = make([]int, para.txSize)
@@ -213,9 +212,6 @@ func (app *BaseApp) paraLoadSender(txs [][]byte) {
 
 func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.ResponseDeliverTx {
 	pm := app.parallelTxManage
-	if !onlyCalSender {
-		return app.runTxs(pm.txByteWithIndex)
-	}
 	txSize := len(txs)
 	pm.txSize = txSize
 	pm.haveCosmosTxInBlock = false
@@ -224,17 +220,18 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 		return make([]*abci.ResponseDeliverTx, 0)
 	}
 
-	//if onlyCalSender {
-	//	app.paraLoadSender(txs)
-	//	return nil
-	//}
+	if onlyCalSender {
+		app.paraLoadSender(txs)
+		return nil
+	}
 
 	app.getExtraDataByTxs(txs)
 
 	app.calGroup()
 
+	txWithIndex := make([][]byte, txSize)
 	for index, v := range txs {
-		pm.txByteWithIndex[index] = getTxByteWithIndex(v, index)
+		txWithIndex[index] = getTxByteWithIndex(v, index)
 	}
 
 	pm.runBase = make([]int, txSize)
@@ -250,19 +247,15 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 			fmt.Println("haveCosmosTxInBlock")
 		}
 
-		pm.indexMapBytes[string(pm.txByteWithIndex[index])] = index
+		pm.indexMapBytes[string(txWithIndex[index])] = index
 	}
-	return nil
+	return app.runTxs(txWithIndex)
 }
 
 func (app *BaseApp) fixFeeCollector(ms sdk.CacheMultiStore) {
 	currTxFee := sdk.Coins{}
 	for index := 0; index < app.parallelTxManage.txSize; index++ {
 		resp := app.parallelTxManage.txReps[index]
-		//if resp == nil || resp.paraMsg == nil || resp.paraMsg.AnteErr != nil {
-		//	continue
-		//}
-
 		if resp.paraMsg.AnteErr != nil {
 			continue
 		}
@@ -615,11 +608,10 @@ type parallelTxManager struct {
 	mu  sync.RWMutex
 	cms sdk.CacheMultiStore
 
-	txByteWithIndex [][]byte
-	txSize          int
-	cc              *conflictCheck
-	currIndex       int
-	runBase         []int
+	txSize    int
+	cc        *conflictCheck
+	currIndex int
+	runBase   []int
 }
 type A struct {
 	value   []byte
