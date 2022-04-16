@@ -17,7 +17,7 @@ import (
 
 var (
 	txIndexLen    = 4
-	maxGoRountine = runtime.NumCPU()
+	maxGoRountine = 64
 )
 
 type extraDataForTx struct {
