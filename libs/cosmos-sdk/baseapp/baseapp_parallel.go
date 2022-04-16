@@ -17,7 +17,7 @@ import (
 
 var (
 	txIndexLen    = 4
-	maxGoRountine = 16
+	maxGoRountine = 8
 )
 
 type extraDataForTx struct {
