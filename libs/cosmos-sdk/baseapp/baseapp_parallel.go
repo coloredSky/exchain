@@ -16,7 +16,8 @@ import (
 )
 
 var (
-	txIndexLen = 4
+	txIndexLen    = 4
+	maxGoRountine = 32
 )
 
 type extraDataForTx struct {
@@ -53,16 +54,10 @@ func (app *BaseApp) getExtraDataByTxs(txs [][]byte) {
 		para.workgroup.isrunning = make([]bool, para.txSize)
 	}
 
-	maxNums := runtime.NumCPU()
-	txSize := len(txs)
-	if maxNums > txSize {
-		maxNums = txSize
-	}
-
 	txJobChan := make(chan task)
-	doneChan := make(chan struct{}, txSize)
+	doneChan := make(chan struct{}, para.txSize)
 
-	for index := 0; index < maxNums; index++ {
+	for index := 0; index < maxGoRountine; index++ {
 		go func(ch chan task) {
 			for t := range ch {
 				tx, err := app.txDecoder(t.txBytes)
@@ -91,7 +86,7 @@ func (app *BaseApp) getExtraDataByTxs(txs [][]byte) {
 			index:   index,
 		}
 	}
-	for index := 0; index < txSize; index++ {
+	for index := 0; index < para.txSize; index++ {
 		<-doneChan
 	}
 	close(txJobChan)
@@ -566,7 +561,7 @@ func (a *asyncWorkGroup) Start() {
 	if !a.isAsync {
 		return
 	}
-	for index := 0; index < 32; index++ {
+	for index := 0; index < maxGoRountine; index++ {
 		go func() {
 			for true {
 				select {
