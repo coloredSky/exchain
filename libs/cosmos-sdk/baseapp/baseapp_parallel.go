@@ -2,6 +2,7 @@ package baseapp
 
 import (
 	"bytes"
+	"container/heap"
 	"encoding/binary"
 	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -49,6 +50,7 @@ func getRealTxByte(txByteWithIndex []byte) []byte {
 func (app *BaseApp) getExtraDataByTxs(txs [][]byte) {
 	para := app.parallelTxManage
 	if para.txSize > len(para.extraTxsInfo) {
+		para.workgroup.txsWithIndex = make([][]byte, para.txSize)
 		para.txReps = make([]*executeResult, para.txSize)
 		para.extraTxsInfo = make([]*extraDataForTx, para.txSize)
 		para.workgroup.runningStatus = make([]int, para.txSize)
@@ -208,10 +210,6 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 		app.paraLoadSender(txs)
 		return nil
 	}
-	txWithIndex := make([][]byte, txSize)
-	for index, v := range txs {
-		txWithIndex[index] = getTxByteWithIndex(v, index)
-	}
 
 	app.getExtraDataByTxs(txs)
 
@@ -223,6 +221,7 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 
 	evmIndex := uint32(0)
 	for index := range txs {
+		txWithIndex := getTxByteWithIndex(txs[index], index)
 		pm.extraTxsInfo[index].indexInBlock = uint32(index)
 		if pm.extraTxsInfo[index].isEvm {
 			pm.extraTxsInfo[index].evmIndex = evmIndex
@@ -232,9 +231,10 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 			fmt.Println("haveCosmosTxInBlock")
 		}
 
-		pm.indexMapBytes[string(txWithIndex[index])] = index
+		pm.indexMapBytes[string(txWithIndex)] = index
+		pm.workgroup.txsWithIndex[index] = txWithIndex
 	}
-	return app.runTxs(txWithIndex)
+	return app.runTxs()
 }
 
 func (app *BaseApp) fixFeeCollector(ms sdk.CacheMultiStore) {
@@ -259,7 +259,7 @@ func (app *BaseApp) fixFeeCollector(ms sdk.CacheMultiStore) {
 	}
 }
 
-func (app *BaseApp) runTxs(txs [][]byte) []*abci.ResponseDeliverTx {
+func (app *BaseApp) runTxs() []*abci.ResponseDeliverTx {
 	maxGas := app.getMaximumBlockGas()
 	currentGas := uint64(0)
 	overFlow := func(sumGas uint64, currGas int64, maxGas uint64) bool {
@@ -290,13 +290,13 @@ func (app *BaseApp) runTxs(txs [][]byte) []*abci.ResponseDeliverTx {
 
 		if pm.workgroup.isFailed(pm.workgroup.runningStats(receiveTxIndex)) {
 			txReps[receiveTxIndex] = nil
-			pm.workgroup.AddTask(txs[receiveTxIndex], receiveTxIndex)
+			pm.workgroup.AddTask(receiveTxIndex)
 
 		} else {
 			if nextTx, ok := pm.nextTxInGroup[receiveTxIndex]; ok {
 				if !pm.workgroup.isRunning(nextTx) {
 					txReps[nextTx] = nil
-					pm.workgroup.AddTask(txs[nextTx], nextTx)
+					pm.workgroup.AddTask(nextTx)
 				}
 			}
 		}
@@ -312,7 +312,7 @@ func (app *BaseApp) runTxs(txs [][]byte) []*abci.ResponseDeliverTx {
 			if pm.newIsConflict(res) || overFlow(currentGas, res.resp.GasUsed, maxGas) {
 				rerunIdx++
 				s.reRun = true
-				res = app.deliverTxWithCache(txs[txIndex], txIndex)
+				res = app.deliverTxWithCache(txIndex)
 				txReps[txIndex] = res
 
 				nn, ok := app.parallelTxManage.nextTxInGroup[txIndex]
@@ -320,7 +320,7 @@ func (app *BaseApp) runTxs(txs [][]byte) []*abci.ResponseDeliverTx {
 				if ok {
 					if !pm.workgroup.isRunning(nn) {
 						txReps[nn] = nil
-						pm.workgroup.AddTask(txs[nn], nn)
+						pm.workgroup.AddTask(nn)
 					}
 				}
 
@@ -346,7 +346,7 @@ func (app *BaseApp) runTxs(txs [][]byte) []*abci.ResponseDeliverTx {
 				return
 			}
 			if txReps[txIndex] == nil && !pm.workgroup.isRunning(txIndex) {
-				pm.workgroup.AddTask(txs[txIndex], txIndex)
+				pm.workgroup.AddTask(txIndex)
 			}
 
 		}
@@ -356,17 +356,17 @@ func (app *BaseApp) runTxs(txs [][]byte) []*abci.ResponseDeliverTx {
 	pm.workgroup.taskRun = app.asyncDeliverTx
 
 	if len(pm.groupList) == 0 {
-		pm.workgroup.AddTask(txs[0], 0)
+		pm.workgroup.AddTask(0)
 	} else if pm.groupList[0][0] != 0 {
-		pm.workgroup.AddTask(txs[0], 0)
+		pm.workgroup.AddTask(0)
 	}
 
 	for _, group := range pm.groupList {
 		txIndex := group[0]
-		pm.workgroup.AddTask(txs[txIndex], txIndex)
+		pm.workgroup.AddTask(txIndex)
 	}
 
-	if len(txs) > 0 {
+	if pm.txSize > 0 {
 		//waiting for call back
 		<-signal
 		app.fixFeeCollector(pm.cms)
@@ -396,7 +396,7 @@ func (app *BaseApp) endParallelTxs() [][]byte {
 
 //we reuse the nonce that changed by the last async call
 //if last ante handler has been failed, we need rerun it ? or not?
-func (app *BaseApp) deliverTxWithCache(txByte []byte, txIndex int) *executeResult {
+func (app *BaseApp) deliverTxWithCache(txIndex int) *executeResult {
 	app.parallelTxManage.workgroup.setTxStatus(txIndex, true)
 	txStatus := app.parallelTxManage.extraTxsInfo[txIndex]
 
@@ -409,7 +409,7 @@ func (app *BaseApp) deliverTxWithCache(txByte []byte, txIndex int) *executeResul
 		mode runTxMode
 	)
 	mode = runTxModeDeliverInAsync
-	info, errM := app.runTx(mode, txByte, txStatus.stdTx, LatestSimulateTxHeight)
+	info, errM := app.runTx(mode, app.parallelTxManage.workgroup.txsWithIndex[txIndex], txStatus.stdTx, LatestSimulateTxHeight)
 	g, r, m, e := info.gInfo, info.result, info.msCacheAnte, errM
 	if e != nil {
 		resp = sdkerrors.ResponseDeliverTx(e, g.GasWanted, g.GasUsed, app.trace)
@@ -470,6 +470,8 @@ func newExecuteResult(r abci.ResponseDeliverTx, ms sdk.CacheMultiStore, counter 
 }
 
 type asyncWorkGroup struct {
+	txsWithIndex [][]byte
+
 	isAsync       bool
 	runningStatus []int
 	isrunning     []bool
@@ -484,6 +486,8 @@ type asyncWorkGroup struct {
 
 	taskCh  chan *task
 	taskRun func([]byte, int)
+
+	initHeap IntHeap
 }
 
 func newAsyncWorkGroup(isAsync bool) *asyncWorkGroup {
@@ -496,8 +500,9 @@ func newAsyncWorkGroup(isAsync bool) *asyncWorkGroup {
 		resultCh: make(chan *executeResult, 20000),
 		resultCb: nil,
 
-		taskCh:  make(chan *task, 20000),
-		taskRun: nil,
+		taskCh:   make(chan *task, maxGoRountine),
+		taskRun:  nil,
+		initHeap: make([]int, 0),
 	}
 }
 
@@ -539,12 +544,15 @@ func (a *asyncWorkGroup) Push(item *executeResult) {
 	a.resultCh <- item
 }
 
-func (a *asyncWorkGroup) AddTask(tx []byte, index int) {
-	a.setTxStatus(index, true)
-	a.taskCh <- &task{
-		txBytes: tx,
-		index:   index,
-	}
+func (a *asyncWorkGroup) AddTask(index int) {
+	heap.Push(&a.initHeap, index)
+	tt := heap.Pop(&a.initHeap)
+	go func() {
+		a.taskCh <- &task{
+			txBytes: a.txsWithIndex[tt.(int)],
+			index:   index,
+		}
+	}()
 }
 
 func (a *asyncWorkGroup) Start() {
@@ -556,6 +564,7 @@ func (a *asyncWorkGroup) Start() {
 			for true {
 				select {
 				case task := <-a.taskCh:
+					a.setTxStatus(task.index, true)
 					a.taskRun(task.txBytes, task.index)
 				}
 			}
@@ -803,4 +812,40 @@ func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
 	f.mu.Unlock()
 
 	f.cc.deleteFeeAcc()
+}
+
+// An IntHeap is a min-heap of ints.
+type IntHeap []int
+
+func (h IntHeap) Len() int           { return len(h) }
+func (h IntHeap) Less(i, j int) bool { return h[i] < h[j] }
+func (h IntHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+
+func (h *IntHeap) Push(x interface{}) {
+	// Push and Pop use pointer receivers because they modify the slice's length,
+	// not just its contents.
+	*h = append(*h, x.(int))
+}
+
+func (h *IntHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[0 : n-1]
+	return x
+}
+
+// This example inserts several ints into an IntHeap, checks the minimum,
+// and removes them in order of priority.
+func Example_intHeap() {
+	h := &IntHeap{2, 1, 5}
+	heap.Init(h)
+	heap.Push(h, 3)
+	fmt.Printf("minimum: %d\n", (*h)[0])
+	for h.Len() > 0 {
+		fmt.Printf("%d ", heap.Pop(h))
+	}
+	// Output:
+	// minimum: 1
+	// 1 2 3 5
 }
