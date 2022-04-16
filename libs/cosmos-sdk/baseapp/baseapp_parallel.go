@@ -566,7 +566,7 @@ func (a *asyncWorkGroup) Start() {
 	if !a.isAsync {
 		return
 	}
-	for index := 0; index < 16; index++ {
+	for index := 0; index < 32; index++ {
 		go func() {
 			for true {
 				select {
