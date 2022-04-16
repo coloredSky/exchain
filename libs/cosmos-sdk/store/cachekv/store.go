@@ -76,7 +76,7 @@ func (store *Store) Get(key []byte) (value []byte) {
 	return value
 }
 
-func (store *Store) IteratorCache(dirty bool, cb func(key, value []byte, isDirty bool, isDelete bool, sKey types.StoreKey) bool, sKey types.StoreKey) bool {
+func (store *Store) IteratorCache(dirty bool, cb func(key string, value []byte, isDirty bool, isDelete bool, sKey types.StoreKey) bool, sKey types.StoreKey) bool {
 	if cb == nil {
 		return true
 	}
@@ -85,13 +85,13 @@ func (store *Store) IteratorCache(dirty bool, cb func(key, value []byte, isDirty
 
 	if dirty {
 		for key, v := range store.dirty {
-			if !cb([]byte(key), v.value, v.dirty, v.deleted, sKey) {
+			if !cb(key, v.value, v.dirty, v.deleted, sKey) {
 				return false
 			}
 		}
 	} else {
 		for key, v := range store.readList {
-			if !cb([]byte(key), v, false, false, sKey) {
+			if !cb(key, v, false, false, sKey) {
 				return false
 			}
 		}

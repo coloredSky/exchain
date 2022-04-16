@@ -48,37 +48,55 @@ func getRealTxByte(txByteWithIndex []byte) []byte {
 func (app *BaseApp) getExtraDataByTxs(txs [][]byte) {
 	para := app.parallelTxManage
 	if para.txSize > len(para.extraTxsInfo) {
+		para.txByteWithIndex = make([][]byte, para.txSize)
 		para.txReps = make([]*executeResult, para.txSize)
 		para.extraTxsInfo = make([]*extraDataForTx, para.txSize)
 		para.workgroup.runningStatus = make([]int, para.txSize)
 		para.workgroup.isrunning = make([]bool, para.txSize)
 	}
 
-	var wg sync.WaitGroup
-	for index, txBytes := range txs {
-		wg.Add(1)
-		index := index
-		txBytes := txBytes
-		go func() {
-			defer wg.Done()
-			tx, err := app.txDecoder(txBytes)
-			if err != nil {
-				para.extraTxsInfo[index] = &extraDataForTx{
-					decodeErr: err,
-				}
-				return
-			}
-			coin, isEvm, s, toAddr := app.getTxFee(app.getContextForTx(runTxModeDeliver, txBytes), tx)
-			para.extraTxsInfo[index] = &extraDataForTx{
-				fee:   coin,
-				isEvm: isEvm,
-				from:  s,
-				to:    toAddr,
-				stdTx: tx,
-			}
-		}()
+	maxNums := runtime.NumCPU()
+	txSize := len(txs)
+	if maxNums > txSize {
+		maxNums = txSize
 	}
+
+	txJobChan := make(chan task)
+	var wg sync.WaitGroup
+	wg.Add(txSize)
+
+	for index := 0; index < maxNums; index++ {
+		go func(ch chan task, wg *sync.WaitGroup) {
+			for t := range ch {
+				tx, err := app.txDecoder(t.txBytes)
+				if err != nil {
+					para.extraTxsInfo[index] = &extraDataForTx{
+						decodeErr: err,
+					}
+					wg.Done()
+					return
+				}
+				coin, isEvm, s, toAddr := app.getTxFee(app.getContextForTx(runTxModeSimulate, t.txBytes), tx)
+				para.extraTxsInfo[t.index] = &extraDataForTx{
+					fee:   coin,
+					isEvm: isEvm,
+					from:  s,
+					to:    toAddr,
+					stdTx: tx,
+				}
+				wg.Done()
+			}
+		}(txJobChan, &wg)
+	}
+	for index, v := range txs {
+		txJobChan <- task{
+			txBytes: v,
+			index:   index,
+		}
+	}
+
 	wg.Wait()
+	close(txJobChan)
 }
 
 var (
@@ -195,6 +213,9 @@ func (app *BaseApp) paraLoadSender(txs [][]byte) {
 
 func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.ResponseDeliverTx {
 	pm := app.parallelTxManage
+	if !onlyCalSender {
+		return app.runTxs(pm.txByteWithIndex)
+	}
 	txSize := len(txs)
 	pm.txSize = txSize
 	pm.haveCosmosTxInBlock = false
@@ -203,21 +224,19 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 		return make([]*abci.ResponseDeliverTx, 0)
 	}
 
-	if onlyCalSender {
-		app.paraLoadSender(txs)
-		return nil
-	}
-	txWithIndex := make([][]byte, txSize)
-	for index, v := range txs {
-		txWithIndex[index] = getTxByteWithIndex(v, index)
-	}
+	//if onlyCalSender {
+	//	app.paraLoadSender(txs)
+	//	return nil
+	//}
 
 	app.getExtraDataByTxs(txs)
 
 	app.calGroup()
 
-	pm.isAsyncDeliverTx = true
-	pm.cms = app.deliverState.ms.CacheMultiStore()
+	for index, v := range txs {
+		pm.txByteWithIndex[index] = getTxByteWithIndex(v, index)
+	}
+
 	pm.runBase = make([]int, txSize)
 
 	evmIndex := uint32(0)
@@ -227,13 +246,13 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 			pm.extraTxsInfo[index].evmIndex = evmIndex
 			evmIndex++
 		} else {
-			//pm.haveCosmosTxInBlock = true
+			//pm.haveCosmosTxInBlock = true //TODO fix !!!!
 			fmt.Println("haveCosmosTxInBlock")
 		}
 
-		pm.indexMapBytes[string(txWithIndex[index])] = index
+		pm.indexMapBytes[string(pm.txByteWithIndex[index])] = index
 	}
-	return app.runTxs(txWithIndex)
+	return nil
 }
 
 func (app *BaseApp) fixFeeCollector(ms sdk.CacheMultiStore) {
@@ -259,6 +278,7 @@ func (app *BaseApp) fixFeeCollector(ms sdk.CacheMultiStore) {
 }
 
 func (app *BaseApp) runTxs(txs [][]byte) []*abci.ResponseDeliverTx {
+
 	maxGas := app.getMaximumBlockGas()
 	currentGas := uint64(0)
 	overFlow := func(sumGas uint64, currGas int64, maxGas uint64) bool {
@@ -275,6 +295,9 @@ func (app *BaseApp) runTxs(txs [][]byte) []*abci.ResponseDeliverTx {
 	txIndex := 0
 
 	pm := app.parallelTxManage
+
+	pm.isAsyncDeliverTx = true
+	pm.cms = app.deliverState.ms.CacheMultiStore()
 
 	txReps := pm.txReps
 	deliverTxs := make([]*abci.ResponseDeliverTx, pm.txSize)
@@ -552,7 +575,7 @@ func (a *asyncWorkGroup) Start() {
 	if !a.isAsync {
 		return
 	}
-	for index := 0; index < 16; index++ {
+	for index := 0; index < 64; index++ {
 		go func() {
 			for true {
 				select {
@@ -592,10 +615,11 @@ type parallelTxManager struct {
 	mu  sync.RWMutex
 	cms sdk.CacheMultiStore
 
-	txSize    int
-	cc        *conflictCheck
-	currIndex int
-	runBase   []int
+	txByteWithIndex [][]byte
+	txSize          int
+	cc              *conflictCheck
+	currIndex       int
+	runBase         []int
 }
 type A struct {
 	value   []byte
@@ -618,6 +642,10 @@ func (c *conflictCheck) update(key string, value []byte, txIndex int) {
 		txIndex: txIndex,
 	}
 }
+
+func (c *conflictCheck) deleteFeeAcc() {
+	delete(c.items, whiteAcc)
+}
 func (c *conflictCheck) clear() {
 	for key := range c.items {
 		delete(c.items, key)
@@ -625,7 +653,7 @@ func (c *conflictCheck) clear() {
 }
 
 var (
-	whiteAcc = hexutil.MustDecode("0x01f1829676db577682e944fc3493d451b67ff3e29f") //fee
+	whiteAcc = string(hexutil.MustDecode("0x01f1829676db577682e944fc3493d451b67ff3e29f")) //fee
 )
 
 func (pm *parallelTxManager) newIsConflict(e *executeResult) bool {
@@ -634,8 +662,8 @@ func (pm *parallelTxManager) newIsConflict(e *executeResult) bool {
 		return true //TODO fix later
 	}
 	conflict := false
-	e.ms.IteratorCache(false, func(key, value []byte, isDirty bool, isDelete bool, storeKey types.StoreKey) bool {
-		dirty, ok := pm.cc.items[string(key)]
+	e.ms.IteratorCache(false, func(key string, value []byte, isDirty bool, isDelete bool, storeKey types.StoreKey) bool {
+		dirty, ok := pm.cc.items[key]
 		if ok && !bytes.Equal(value, dirty.value) {
 			conflict = true
 			//fmt.Println("????????", e.counter, hex.EncodeToString(key), hex.EncodeToString(value), hex.EncodeToString(dirty.value))
@@ -776,22 +804,19 @@ func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
 	//}()
 
 	f.mu.Lock()
-	res.ms.IteratorCache(true, func(key, value []byte, isDirty bool, isdelete bool, storeKey sdk.StoreKey) bool {
-		if bytes.Equal(key, whiteAcc) {
-			return true
-		}
+	res.ms.IteratorCache(true, func(key string, value []byte, isDirty bool, isdelete bool, storeKey sdk.StoreKey) bool {
 		if isDirty {
-
-			f.cc.update(string(key), value, txIndex)
+			f.cc.update(key, value, txIndex)
 			if isdelete {
-				f.cms.GetKVStore(storeKey).Delete(key)
+				f.cms.GetKVStore(storeKey).Delete([]byte(key))
 			} else if value != nil {
-				f.cms.GetKVStore(storeKey).Set(key, value)
+				f.cms.GetKVStore(storeKey).Set([]byte(key), value)
 			}
 		}
 		return true
 	}, nil)
 	f.currIndex = txIndex
 	f.mu.Unlock()
+	f.cc.deleteFeeAcc()
 	//<-chanStop
 }
