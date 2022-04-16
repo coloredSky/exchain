@@ -3,6 +3,7 @@ package cachekv
 import (
 	"bytes"
 	"container/list"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"io"
 	"reflect"
 	"sort"
@@ -76,28 +77,43 @@ func (store *Store) Get(key []byte) (value []byte) {
 	return value
 }
 
-func (store *Store) IteratorCache(dirty bool, cb func(key, value []byte, isDirty bool, isDelete bool, sKey types.StoreKey) bool, sKey types.StoreKey) bool {
+var (
+	feeCollector = string(hexutil.MustDecode("0x01f1829676db577682e944fc3493d451b67ff3e29f"))
+)
+
+func (store *Store) IteratorCache(dirty bool, cb func(key string, value []byte, isDirty bool, isDelete bool, sKey types.StoreKey) bool, sKey types.StoreKey) bool {
 	if cb == nil {
 		return true
 	}
 	store.mtx.Lock()
 	defer store.mtx.Unlock()
+	delete(store.dirty, feeCollector)
+	delete(store.readList, feeCollector)
 
 	if dirty {
 		for key, v := range store.dirty {
-			if !cb([]byte(key), v.value, v.dirty, v.deleted, sKey) {
+			if !cb(key, v.value, v.dirty, v.deleted, sKey) {
 				return false
 			}
 		}
 	} else {
 		for key, v := range store.readList {
-			if !cb([]byte(key), v, false, false, sKey) {
+			if !cb(key, v, false, false, sKey) {
 				return false
 			}
 		}
 	}
 
 	return true
+}
+
+func (store *Store) GetDirtyKey(sKey types.StoreKey, key string) ([]byte, bool) {
+	data, ok := store.dirty[key]
+	if !ok {
+		return nil, false
+	}
+	return data.value, true
+
 }
 
 func (store *Store) GetRWSet(rSet map[string][]byte, wSet map[string][]byte) {

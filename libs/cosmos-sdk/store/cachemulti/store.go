@@ -136,13 +136,17 @@ func (cms Store) Write() {
 	}
 }
 
-func (cms Store) IteratorCache(dirty bool, cb func(key, value []byte, isDirty bool, isDelete bool, storeKey types.StoreKey) bool, sKey types.StoreKey) bool {
+func (cms Store) IteratorCache(dirty bool, cb func(key string, value []byte, isDirty bool, isDelete bool, storeKey types.StoreKey) bool, sKey types.StoreKey) bool {
 	for key, store := range cms.stores {
 		if !store.IteratorCache(dirty, cb, key) {
 			return false
 		}
 	}
 	return true
+}
+
+func (cms Store) GetDirtyKey(sKey types.StoreKey, key string) ([]byte, bool) {
+	return cms.stores[sKey].GetDirtyKey(nil, key)
 }
 
 func (cms Store) GetRWSet(rSet map[string][]byte, wSet map[string][]byte) {

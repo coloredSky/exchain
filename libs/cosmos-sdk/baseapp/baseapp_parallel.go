@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/okex/exchain/libs/cosmos-sdk/store/types"
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
 	sdkerrors "github.com/okex/exchain/libs/cosmos-sdk/types/errors"
@@ -552,7 +551,7 @@ func (a *asyncWorkGroup) Start() {
 	if !a.isAsync {
 		return
 	}
-	for index := 0; index < 16; index++ {
+	for index := 0; index < 64; index++ {
 		go func() {
 			for true {
 				select {
@@ -592,82 +591,59 @@ type parallelTxManager struct {
 	mu  sync.RWMutex
 	cms sdk.CacheMultiStore
 
-	txSize    int
-	cc        *conflictCheck
+	txSize int
+	//cc        *conflictCheck
 	currIndex int
 	runBase   []int
 }
-type A struct {
-	value   []byte
-	txIndex int
-}
 
-type conflictCheck struct {
-	items map[string]A
-}
+//type A struct {
+//	value   []byte
+//	txIndex int
+//}
+//
+//type conflictCheck struct {
+//	items map[string]A
+//}
+//
+//func newConflictCheck() *conflictCheck {
+//	return &conflictCheck{
+//		items: make(map[string]A),
+//	}
+//}
+//
+//func (c *conflictCheck) update(key string, value []byte, txIndex int) {
+//	c.items[key] = A{
+//		value:   value,
+//		txIndex: txIndex,
+//	}
+//}
+//func (c *conflictCheck) clear() {
+//	for key := range c.items {
+//		delete(c.items, key)
+//	}
+//}
 
-func newConflictCheck() *conflictCheck {
-	return &conflictCheck{
-		items: make(map[string]A),
-	}
-}
-
-func (c *conflictCheck) update(key string, value []byte, txIndex int) {
-	c.items[key] = A{
-		value:   value,
-		txIndex: txIndex,
-	}
-}
-func (c *conflictCheck) clear() {
-	for key := range c.items {
-		delete(c.items, key)
-	}
-}
-
-var (
-	whiteAcc = hexutil.MustDecode("0x01f1829676db577682e944fc3493d451b67ff3e29f") //fee
-)
+//var (
+//	whiteAcc = string(hexutil.MustDecode("0x01f1829676db577682e944fc3493d451b67ff3e29f")) //fee
+//)
 
 func (pm *parallelTxManager) newIsConflict(e *executeResult) bool {
-	//base := pm.runBase[e.counter]
 	if e.ms == nil {
 		return true //TODO fix later
 	}
 	conflict := false
-	e.ms.IteratorCache(false, func(key, value []byte, isDirty bool, isDelete bool, storeKey types.StoreKey) bool {
-		dirty, ok := pm.cc.items[string(key)]
-		if ok && !bytes.Equal(value, dirty.value) {
+	e.ms.IteratorCache(false, func(key string, value []byte, isDirty bool, isDelete bool, storeKey types.StoreKey) bool {
+		dirty, ok := pm.cms.GetDirtyKey(storeKey, key)
+		if ok && !bytes.Equal(value, dirty) {
 			conflict = true
-			//fmt.Println("????????", e.counter, hex.EncodeToString(key), hex.EncodeToString(value), hex.EncodeToString(dirty.value))
 			return false
 		}
 
 		return true
 	}, nil)
-	//}
-	//for k, readValue := range e.readList {
-	//
-	//	if pm.isConflict(base, k, readValue, int(e.counter)) {
-	//		fmt.Println("conflict", e.counter, hex.EncodeToString([]byte(k)), hex.EncodeToString(readValue))
-	//		return true
-	//	}
-	//}
-
 	return conflict
 
-}
-
-func (p *parallelTxManager) isConflict(base int, key string, readValue []byte, txIndex int) bool {
-	if dirtyTxIndex, ok := p.cc.items[key]; ok {
-		if !bytes.Equal(dirtyTxIndex.value, readValue) {
-			return true
-		} else {
-			if base < dirtyTxIndex.txIndex && p.txIndexWithGroupID[dirtyTxIndex.txIndex] != p.txIndexWithGroupID[txIndex] {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 type task struct {
@@ -687,7 +663,7 @@ func newParallelTxManager() *parallelTxManager {
 		preTxInGroup:       make(map[int]int),
 		txIndexWithGroupID: make(map[int]int),
 
-		cc:        newConflictCheck(),
+		//cc:        newConflictCheck(),
 		currIndex: -1,
 		runBase:   make([]int, 0),
 	}
@@ -714,7 +690,7 @@ func (f *parallelTxManager) clear() {
 	}
 
 	f.currIndex = -1
-	f.cc.clear()
+	//f.cc.clear()
 
 	for key := range f.workgroup.markFailedStats {
 		delete(f.workgroup.markFailedStats, key)
@@ -767,31 +743,22 @@ func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
 		return
 	}
 
-	//chanStop := make(chan struct{}, 1)
-	//go func() {
-	//for k, v := range res.writeList {
-	//	f.cc.update(k, v, txIndex)
-	//}
-	//	chanStop <- struct{}{}
-	//}()
-
 	f.mu.Lock()
-	res.ms.IteratorCache(true, func(key, value []byte, isDirty bool, isdelete bool, storeKey sdk.StoreKey) bool {
-		if bytes.Equal(key, whiteAcc) {
-			return true
-		}
+	res.ms.IteratorCache(true, func(key string, value []byte, isDirty bool, isdelete bool, storeKey sdk.StoreKey) bool {
+		//if key == whiteAcc {
+		//	return true
+		//}
 		if isDirty {
 
-			f.cc.update(string(key), value, txIndex)
+			//f.cc.update(string(key), value, txIndex)
 			if isdelete {
-				f.cms.GetKVStore(storeKey).Delete(key)
+				f.cms.GetKVStore(storeKey).Delete([]byte(key))
 			} else if value != nil {
-				f.cms.GetKVStore(storeKey).Set(key, value)
+				f.cms.GetKVStore(storeKey).Set([]byte(key), value)
 			}
 		}
 		return true
 	}, nil)
 	f.currIndex = txIndex
 	f.mu.Unlock()
-	//<-chanStop
 }
