@@ -231,8 +231,7 @@ type KVStore interface {
 }
 
 type CacheManager interface {
-	GetDirtyKey(sKey StoreKey, key string) ([]byte, bool)
-	IteratorCache(dirty bool, cb func(key string, value []byte, isDirty bool, isDelete bool, storeKey StoreKey) bool, sKey StoreKey) bool
+	IteratorCache(dirty bool, cb func(key, value []byte, isDirty bool, isDelete bool, storeKey StoreKey) bool, sKey StoreKey) bool
 	GetRWSet(rSet map[string][]byte, wSet map[string][]byte)
 }
 
