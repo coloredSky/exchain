@@ -19,13 +19,20 @@ func updateFeeCollectorHandler(bk bank.Keeper, sk supply.Keeper) sdk.UpdateFeeCo
 }
 
 // evmTxFeeHandler get tx fee for evm tx
-func evmTxFeeHandler() sdk.GetTxFeeHandler {
+func evmTxFeeHandler(ak auth.AccountKeeper, ek *evm.Keeper) sdk.GetTxFeeHandler {
 	return func(ctx sdk.Context, tx sdk.Tx) (fee sdk.Coins, isEvm bool, from string, to *ethcmn.Address) {
 		if evmTx, ok := tx.(*evmtypes.MsgEthereumTx); ok {
 			isEvm = true
 			_ = evmTx.VerifySig(evmTx.ChainID(), ctx.BlockHeight())
 			from = evmTx.BaseTx.From
 			to = evmTx.To()
+			go func() {
+				ak.GetAccount(ctx, evmTx.AccountAddress())
+				if to != nil {
+					ak.GetAccount(ctx, to.Bytes())
+					ek.GetCode(ctx, *to)
+				}
+			}()
 
 		}
 		if feeTx, ok := tx.(authante.FeeTx); ok {

@@ -66,6 +66,13 @@ func (app *BaseApp) getExtraDataByTxs(txs [][]byte) {
 		}()
 	}
 	wg.Wait()
+	//
+	//cnt := 0
+	//app.deliverState.ms.IteratorCache(false, func(key string, value []byte, isDirty bool, isDelete bool, storeKey types.StoreKey) bool {
+	//	cnt++
+	//	return true
+	//}, nil)
+	//fmt.Println("end", cnt)
 }
 
 var (
@@ -202,6 +209,7 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 
 	pm.isAsyncDeliverTx = true
 	pm.cms = app.deliverState.ms.CacheMultiStore()
+
 	pm.runBase = make([]int, txSize)
 
 	evmIndex := uint32(0)
