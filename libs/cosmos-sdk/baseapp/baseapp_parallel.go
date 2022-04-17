@@ -594,8 +594,7 @@ type parallelTxManager struct {
 	currIndex int
 	runBase   []int
 
-	commitDone  chan struct{}
-	isCommiting bool
+	commitDone chan struct{}
 }
 type A struct {
 	value   []byte

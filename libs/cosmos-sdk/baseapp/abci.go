@@ -175,7 +175,6 @@ func (app *BaseApp) EndBlock(req abci.RequestEndBlock) (res abci.ResponseEndBloc
 	}
 
 	go func() {
-		app.parallelTxManage.isCommiting = true
 		app.deliverState.ms.Write()
 		app.parallelTxManage.commitDone <- struct{}{}
 	}()
@@ -229,9 +228,9 @@ func (app *BaseApp) addCommitTraceInfo() {
 func (app *BaseApp) Commit(req abci.RequestCommit) abci.ResponseCommit {
 
 	header := app.deliverState.ctx.BlockHeader()
-	if app.parallelTxManage.isCommiting {
+
+	if app.parallelTxManage.isAsyncDeliverTx {
 		<-app.parallelTxManage.commitDone
-		app.parallelTxManage.isCommiting = false
 	} else {
 		app.deliverState.ms.Write()
 	}
