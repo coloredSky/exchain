@@ -26,13 +26,12 @@ func evmTxFeeHandler(ak auth.AccountKeeper, ek *evm.Keeper) sdk.GetTxFeeHandler 
 			_ = evmTx.VerifySig(evmTx.ChainID(), ctx.BlockHeight())
 			from = evmTx.BaseTx.From
 			to = evmTx.To()
-			go func() {
-				ak.GetAccount(ctx, evmTx.AccountAddress())
-				if to != nil {
-					ak.GetAccount(ctx, to.Bytes())
-					ek.GetCode(ctx, *to)
-				}
-			}()
+			ak.GetAccount(ctx, evmTx.AccountAddress())
+			if to != nil {
+				ak.GetAccount(ctx, to.Bytes())
+				//fmt.Println("tt", tt.GetAddress().String(), to.String(), tt.GetCoins().String())
+				ek.GetCode(ctx, *to)
+			}
 
 		}
 		if feeTx, ok := tx.(authante.FeeTx); ok {
