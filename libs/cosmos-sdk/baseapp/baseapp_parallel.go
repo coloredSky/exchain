@@ -604,8 +604,8 @@ func newConflictCheck() *conflictCheck {
 }
 
 func (c *conflictCheck) get(key string) (A, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	data, ok := c.items[key]
 	return data, ok
 }
