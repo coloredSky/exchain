@@ -603,6 +603,13 @@ func newConflictCheck() *conflictCheck {
 	}
 }
 
+func (c *conflictCheck) get(key string) (A, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	data, ok := c.items[key]
+	return data, ok
+}
+
 func (c *conflictCheck) update(key string, value []byte, txIndex int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -641,7 +648,7 @@ func (pm *parallelTxManager) newIsConflict(e *executeResult) bool {
 	e.ms.IteratorCache(false, func(key string, value []byte, isDirty bool, isDelete bool, storeKey types.StoreKey) bool {
 		size++
 		go func(key string, value []byte) {
-			dirty, ok := pm.cc.items[key]
+			dirty, ok := pm.cc.get(key)
 			if ok && !bytes.Equal(dirty.value, value) {
 				conflictChan <- true
 			} else {
