@@ -593,6 +593,7 @@ type A struct {
 }
 
 type conflictCheck struct {
+	mu    sync.RWMutex
 	items map[string]A
 }
 
@@ -603,6 +604,8 @@ func newConflictCheck() *conflictCheck {
 }
 
 func (c *conflictCheck) update(key string, value []byte, txIndex int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.items[key] = A{
 		value:   value,
 		txIndex: txIndex,
@@ -631,19 +634,32 @@ func (pm *parallelTxManager) newIsConflict(e *executeResult) bool {
 	if e.ms == nil {
 		return true //TODO fix later
 	}
-	conflict := false
+
+	conflictChan := make(chan bool, 0)
+	size := 0
 
 	e.ms.IteratorCache(false, func(key string, value []byte, isDirty bool, isDelete bool, storeKey types.StoreKey) bool {
-		dirty, ok := pm.cc.items[key]
-		if ok && !bytes.Equal(dirty.value, value) {
-			conflict = true
-			return false
-		}
+		size++
+		go func(key string, value []byte) {
+			dirty, ok := pm.cc.items[key]
+			if ok && !bytes.Equal(dirty.value, value) {
+				conflictChan <- true
+			} else {
+				conflictChan <- false
+			}
+		}(key, value)
 
 		return true
 	}, nil)
 
-	return conflict
+	for index := 0; index < size; index++ {
+		data := <-conflictChan
+		if data {
+			return true
+		}
+	}
+
+	return false
 
 }
 
@@ -776,18 +792,24 @@ func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
 	//}()
 
 	f.mu.Lock()
+	var wg sync.WaitGroup
 	res.ms.IteratorCache(true, func(key string, value []byte, isDirty bool, isdelete bool, storeKey sdk.StoreKey) bool {
 		if isDirty {
+			wg.Add(1)
+			go func(key string, value []byte) {
+				f.cc.update(key, value, txIndex)
+				if isdelete {
+					f.cms.GetKVStore(storeKey).Delete([]byte(key))
+				} else if value != nil {
+					f.cms.GetKVStore(storeKey).Set([]byte(key), value)
+				}
+				wg.Done()
+			}(key, value)
 
-			f.cc.update(key, value, txIndex)
-			if isdelete {
-				f.cms.GetKVStore(storeKey).Delete([]byte(key))
-			} else if value != nil {
-				f.cms.GetKVStore(storeKey).Set([]byte(key), value)
-			}
 		}
 		return true
 	}, nil)
+	wg.Wait()
 	f.currIndex = txIndex
 	f.mu.Unlock()
 
