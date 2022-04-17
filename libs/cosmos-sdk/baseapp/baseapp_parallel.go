@@ -6,6 +6,7 @@ import (
 	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/okex/exchain/libs/cosmos-sdk/store/types"
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
 	sdkerrors "github.com/okex/exchain/libs/cosmos-sdk/types/errors"
 	abci "github.com/okex/exchain/libs/tendermint/abci/types"
@@ -432,8 +433,8 @@ type executeResult struct {
 	counter    uint32
 	err        error
 	evmCounter uint32
-	readList   map[string][]byte
-	writeList  map[string][]byte
+	//readList   map[string][]byte
+	//writeList  map[string][]byte
 
 	paraMsg *sdk.ParaMsg
 }
@@ -453,14 +454,14 @@ func newExecuteResult(r abci.ResponseDeliverTx, ms sdk.CacheMultiStore, counter 
 		ms:         ms,
 		counter:    counter,
 		evmCounter: evmCounter,
-		readList:   make(map[string][]byte),
-		writeList:  make(map[string][]byte),
-		paraMsg:    paraMsg,
+		//readList:   make(map[string][]byte),
+		//writeList:  make(map[string][]byte),
+		paraMsg: paraMsg,
 	}
 
-	loadPreData(ms, ans.readList, ans.writeList)
-	delete(ans.readList, whiteAcc)
-	delete(ans.writeList, whiteAcc)
+	//loadPreData(ms, ans.readList, ans.writeList)
+	//delete(ans.readList, whiteAcc)
+	//delete(ans.writeList, whiteAcc)
 	if paraMsg == nil {
 		ans.paraMsg = &sdk.ParaMsg{}
 	}
@@ -617,6 +618,10 @@ func (c *conflictCheck) update(key string, value []byte, txIndex int) {
 		txIndex: txIndex,
 	}
 }
+
+func (c *conflictCheck) deleteFee() {
+	delete(c.items, whiteAcc)
+}
 func (c *conflictCheck) clear() {
 	for key := range c.items {
 		delete(c.items, key)
@@ -628,17 +633,23 @@ var (
 )
 
 func (pm *parallelTxManager) newIsConflict(e *executeResult) bool {
-	base := pm.runBase[e.counter]
+	//base := pm.runBase[e.counter]
 	if e.ms == nil {
 		return true //TODO fix later
 	}
-	for k, readValue := range e.readList {
+	conflict := false
 
-		if pm.isConflict(base, k, readValue, int(e.counter)) {
-			return true
+	e.ms.IteratorCache(false, func(key string, value []byte, isDirty bool, isDelete bool, storeKey types.StoreKey) bool {
+		if data, ok := pm.cc.items[key]; ok {
+			if !bytes.Equal(data.value, value) {
+				conflict = true
+				return false
+			}
 		}
-	}
-	return false
+		return true
+	}, nil)
+
+	return conflict
 
 }
 
@@ -753,44 +764,20 @@ func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
 		return
 	}
 
-	chanStop := make(chan struct{}, 2)
-	go func() {
-		for k, v := range res.writeList {
-			f.cc.update(k, v, txIndex)
-		}
-		chanStop <- struct{}{}
-	}()
-
-	//go func() {
-	//	tt := make([]string, 0)
-	//	for k, v := range res.readList {
-	//		if len(v) < 200 {
-	//			tt = append(tt, fmt.Sprintf("read key:%s value:%s", hex.EncodeToString([]byte(k)), hex.EncodeToString(v)))
-	//		}
-	//	}
-	//
-	//	for k, v := range res.writeList {
-	//		tt = append(tt, fmt.Sprintf("write ket:%s value:%s", hex.EncodeToString([]byte(k)), hex.EncodeToString(v)))
-	//	}
-	//	tt = append(tt, fmt.Sprintf("txIndex %d base %d", txIndex, f.getRunBase(txIndex)))
-	//	sdk.DebugLogByScf.AddRWSet(tt)
-	//	chanStop <- struct{}{}
-	//}()
-
 	f.mu.Lock()
-	res.ms.IteratorCache(func(key, value []byte, isDirty bool, isdelete bool, storeKey sdk.StoreKey) bool {
+	res.ms.IteratorCache(true, func(key string, value []byte, isDirty bool, isdelete bool, storeKey sdk.StoreKey) bool {
 		if isDirty {
-
+			f.cc.update(key, value, txIndex)
 			if isdelete {
-				f.cms.GetKVStore(storeKey).Delete(key)
+				f.cms.GetKVStore(storeKey).Delete([]byte(key))
 			} else if value != nil {
-				f.cms.GetKVStore(storeKey).Set(key, value)
+				f.cms.GetKVStore(storeKey).Set([]byte(key), value)
 			}
 		}
 		return true
 	}, nil)
 	f.currIndex = txIndex
 	f.mu.Unlock()
-	//<-chanStop
-	<-chanStop
+	f.cc.deleteFee()
+
 }
