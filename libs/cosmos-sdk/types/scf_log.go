@@ -1,5 +1,7 @@
 package types
 
+import "time"
+
 //import "fmt"
 
 var (
@@ -43,3 +45,9 @@ type ScfLog struct {
 //	}
 
 //}
+
+var (
+	EndTs         = time.Duration(0)
+	CheckConflict = time.Duration(0)
+	MergeTs       = time.Duration(0)
+)

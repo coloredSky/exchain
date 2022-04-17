@@ -290,6 +290,8 @@ func doReplay(ctx *server.Context, state sm.State, stateStoreDB dbm.DB,
 			SaveBlock(ctx, originBlockStore, height)
 		}
 	}
+
+	fmt.Println("end", sdk.EndTs.Seconds(), sdk.CheckConflict.Seconds(), sdk.MergeTs.Seconds())
 }
 
 func dumpMemPprof() error {

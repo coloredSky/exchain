@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/viper"
 	"runtime"
 	"sync"
+	"time"
 )
 
 var (
@@ -359,6 +360,8 @@ func (app *BaseApp) runTxs() []*abci.ResponseDeliverTx {
 	if pm.txSize > 0 {
 		//waiting for call back
 		<-signal
+
+		ts := time.Now()
 		app.fixFeeCollector(pm.cms)
 		receiptsLogs := app.endParallelTxs()
 		for index, v := range receiptsLogs {
@@ -366,8 +369,10 @@ func (app *BaseApp) runTxs() []*abci.ResponseDeliverTx {
 				deliverTxs[index].Data = v
 			}
 		}
+		pm.cms.Write()
+		sdk.EndTs += time.Now().Sub(ts)
+
 	}
-	pm.cms.Write()
 	return deliverTxs
 }
 
@@ -618,6 +623,10 @@ var (
 )
 
 func (pm *parallelTxManager) newIsConflict(e *executeResult) bool {
+	ts := time.Now()
+	defer func() {
+		sdk.CheckConflict += time.Now().Sub(ts)
+	}()
 	//base := pm.runBase[e.counter]
 	if e.ms == nil {
 		return true //TODO fix later
@@ -734,6 +743,10 @@ func (f *parallelTxManager) getRunBase(now int) int {
 }
 
 func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
+	ts := time.Now()
+	defer func() {
+		sdk.MergeTs += time.Now().Sub(ts)
+	}()
 	if res.ms == nil {
 		return
 	}
