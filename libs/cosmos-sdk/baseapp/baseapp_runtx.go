@@ -25,6 +25,16 @@ type runTxInfo struct {
 	result  *sdk.Result
 	txBytes []byte
 	tx      sdk.Tx
+	txIndex int
+}
+
+func (app *BaseApp) runTxWithTxIndex(txIndex int, mode runTxMode,
+	txBytes []byte, tx sdk.Tx, height int64, from ...string) (info *runTxInfo, err error) {
+	info = &runTxInfo{
+		txIndex: txIndex,
+	}
+	err = app.runtxWithInfo(info, mode, txBytes, tx, height, from...)
+	return
 }
 
 func (app *BaseApp) runTx(mode runTxMode,
@@ -122,7 +132,7 @@ func (app *BaseApp) runAnte(info *runTxInfo, mode runTxMode) error {
 
 	if mode == runTxModeDeliverInAsync {
 		info.msCacheAnte = nil
-		msCacheAnte := app.parallelTxManage.getTxResult(info.txBytes)
+		msCacheAnte := app.parallelTxManage.getTxResult(info.txIndex)
 		if msCacheAnte == nil {
 			return errors.New("Need Skip:txIndex smaller than currentIndex")
 		}
@@ -238,7 +248,7 @@ func (app *BaseApp) runTx_defer_recover(r interface{}, info *runTxInfo) error {
 	return err
 }
 
-func (app *BaseApp) asyncDeliverTx(txWithIndex []byte, txIndex int) {
+func (app *BaseApp) asyncDeliverTx(txIndex int) {
 
 	txStatus := app.parallelTxManage.extraTxsInfo[txIndex]
 
@@ -255,7 +265,7 @@ func (app *BaseApp) asyncDeliverTx(txWithIndex []byte, txIndex int) {
 	}
 
 	var resp abci.ResponseDeliverTx
-	info, errM := app.runTx(runTxModeDeliverInAsync, txWithIndex, txStatus.stdTx, LatestSimulateTxHeight)
+	info, errM := app.runTxWithTxIndex(txIndex, runTxModeDeliverInAsync, app.parallelTxManage.workgroup.txs[txIndex], txStatus.stdTx, LatestSimulateTxHeight)
 	if errM != nil {
 		resp = sdkerrors.ResponseDeliverTx(errM, info.gInfo.GasWanted, info.gInfo.GasUsed, app.trace)
 	} else {
