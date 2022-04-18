@@ -3,7 +3,6 @@ package baseapp
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/okex/exchain/libs/cosmos-sdk/store/types"
@@ -227,8 +226,8 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 			pm.extraTxsInfo[index].evmIndex = evmIndex
 			evmIndex++
 		} else {
-			//pm.haveCosmosTxInBlock = true
-			fmt.Println("haveCosmosTxInBlock")
+			pm.haveCosmosTxInBlock = true
+			//fmt.Println("haveCosmosTxInBlock")
 		}
 
 		pm.indexMapBytes[string(txWithIndex[index])] = index
