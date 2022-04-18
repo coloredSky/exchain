@@ -662,6 +662,6 @@ func (w *Watcher) dispatchJob(f func()) {
 		w.log.Error("job too busy.")
 		go func() {
 			w.jobChan <- f
-		}
+		}()
 	}
 }
