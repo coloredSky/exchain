@@ -31,7 +31,7 @@ type runTxInfo struct {
 func (app *BaseApp) runTxWithIndex(txIndex int, mode runTxMode,
 	txBytes []byte, tx sdk.Tx, height int64, from ...string) (info *runTxInfo, err error) {
 
-	info = &runTxInfo{}
+	info = &runTxInfo{txIndex: txIndex}
 	err = app.runtxWithInfo(info, mode, txBytes, tx, height, from...)
 	return
 }
