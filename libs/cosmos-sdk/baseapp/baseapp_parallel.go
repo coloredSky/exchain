@@ -731,12 +731,20 @@ func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
 	}
 	sdk.Merge1 += time.Now().Sub(ts)
 
+	mp := make(map[types.StoreKey]types.KVStore)
+
 	ts = time.Now()
 	for key, value := range res.dirtySet {
+		currKy := mp[value.Skey]
+		if currKy == nil {
+			currKy = f.cms.GetKVStore(value.Skey)
+			mp[value.Skey] = currKy
+		}
+
 		if value.Delete {
-			f.cms.GetKVStore(value.Skey).Delete([]byte(key))
+			currKy.Delete([]byte(key))
 		} else {
-			f.cms.GetKVStore(value.Skey).Set([]byte(key), value.Value)
+			currKy.Set([]byte(key), value.Value)
 		}
 	}
 	sdk.Merge2 += time.Now().Sub(ts)
