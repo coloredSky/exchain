@@ -2,6 +2,7 @@ package cachemulti
 
 import (
 	"fmt"
+	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
 	"io"
 
 	dbm "github.com/okex/exchain/libs/tm-db"
@@ -145,9 +146,9 @@ func (cms Store) IteratorCache(isdirty bool, cb func(key string, value []byte, i
 	return true
 }
 
-func (cms Store) GetRWSet(rSet map[string][]byte, wSet map[string][]byte) {
-	for _, store := range cms.stores {
-		store.GetRWSet(rSet, wSet)
+func (cms Store) GetRWSet(sKey sdk.StoreKey, rSet map[string][]byte, dirtySet map[string]types.StoreKeyValue) {
+	for key, store := range cms.stores {
+		store.GetRWSet(key, rSet, dirtySet)
 	}
 }
 

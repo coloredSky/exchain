@@ -15,10 +15,6 @@ import (
 	"time"
 )
 
-var (
-	txIndexLen = 4
-)
-
 type extraDataForTx struct {
 	fee          sdk.Coins
 	isEvm        bool
@@ -210,7 +206,6 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 		sdk.VerifyAndCalGroup += time.Now().Sub(ts)
 		pm.preLoadChan <- struct{}{}
 	}()
-
 	return nil
 }
 
@@ -411,18 +406,18 @@ type executeResult struct {
 	counter    uint32
 	err        error
 	evmCounter uint32
-	//readList   map[string][]byte
-	//writeList  map[string][]byte
+	readList   map[string][]byte
+	dirtySet   map[string]types.StoreKeyValue
 
 	paraMsg *sdk.ParaMsg
 }
 
-func loadPreData(ms sdk.CacheMultiStore, rSet map[string][]byte, wSet map[string][]byte) {
+func loadPreData(ms sdk.CacheMultiStore, rSet map[string][]byte, dirtySet map[string]types.StoreKeyValue) {
 	if ms == nil {
 		return
 	}
 
-	ms.GetRWSet(rSet, wSet)
+	ms.GetRWSet(nil, rSet, dirtySet)
 	return
 }
 
@@ -432,14 +427,14 @@ func newExecuteResult(r abci.ResponseDeliverTx, ms sdk.CacheMultiStore, counter 
 		ms:         ms,
 		counter:    counter,
 		evmCounter: evmCounter,
-		//readList:   make(map[string][]byte),
-		//writeList:  make(map[string][]byte),
-		paraMsg: paraMsg,
+		readList:   make(map[string][]byte),
+		dirtySet:   make(map[string]types.StoreKeyValue),
+		paraMsg:    paraMsg,
 	}
 
-	//loadPreData(ms, ans.readList, ans.writeList)
-	//delete(ans.readList, whiteAcc)
-	//delete(ans.writeList, whiteAcc)
+	loadPreData(ms, ans.readList, ans.dirtySet)
+	delete(ans.readList, whiteAcc)
+	delete(ans.dirtySet, whiteAcc)
 	if paraMsg == nil {
 		ans.paraMsg = &sdk.ParaMsg{}
 	}
@@ -618,19 +613,16 @@ func (pm *parallelTxManager) newIsConflict(e *executeResult) bool {
 	if e.ms == nil {
 		return true //TODO fix later
 	}
-	conflict := false
 
-	e.ms.IteratorCache(false, func(key string, value []byte, isDirty bool, isDelete bool, storeKey types.StoreKey) bool {
+	for key, value := range e.readList {
 		if data, ok := pm.cc.items[key]; ok {
 			if !bytes.Equal(data.value, value) {
-				conflict = true
-				return false
+				return true
 			}
 		}
-		return true
-	}, nil)
+	}
 
-	return conflict
+	return false
 
 }
 
@@ -645,11 +637,6 @@ func (p *parallelTxManager) isConflict(base int, key string, readValue []byte, t
 		}
 	}
 	return false
-}
-
-type task struct {
-	txBytes []byte
-	index   int
 }
 
 func newParallelTxManager() *parallelTxManager {
@@ -673,8 +660,6 @@ func newParallelTxManager() *parallelTxManager {
 }
 
 func (f *parallelTxManager) clear() {
-	ts := time.Now()
-
 	f.txReps = nil
 	f.extraTxsInfo = nil
 	f.workgroup.runningStatus = nil
@@ -701,7 +686,6 @@ func (f *parallelTxManager) clear() {
 		delete(f.workgroup.markFailedStats, key)
 	}
 	f.workgroup.indexInAll = 0
-	sdk.ClearPm += time.Now().Sub(ts)
 }
 
 func (f *parallelTxManager) isReRun(txIndex int) bool {
@@ -753,17 +737,15 @@ func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
 	}
 
 	f.mu.Lock()
-	res.ms.IteratorCache(true, func(key string, value []byte, isDirty bool, isdelete bool, storeKey sdk.StoreKey) bool {
-		if isDirty {
-			f.cc.update(key, value, txIndex)
-			if isdelete {
-				f.cms.GetKVStore(storeKey).Delete([]byte(key))
-			} else if value != nil {
-				f.cms.GetKVStore(storeKey).Set([]byte(key), value)
-			}
+	for key, value := range res.dirtySet {
+		f.cc.update(key, value.Value, txIndex)
+		if value.Delete {
+			f.cms.GetKVStore(value.Skey).Delete([]byte(key))
+		} else {
+			f.cms.GetKVStore(value.Skey).Set([]byte(key), value.Value)
 		}
-		return true
-	}, nil)
+	}
+
 	f.currIndex = txIndex
 	f.mu.Unlock()
 	f.cc.deleteFee()

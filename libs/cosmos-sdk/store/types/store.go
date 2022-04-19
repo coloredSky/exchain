@@ -232,7 +232,7 @@ type KVStore interface {
 
 type CacheManager interface {
 	IteratorCache(isdirty bool, cb func(key string, value []byte, isDirty bool, isDelete bool, storeKey StoreKey) bool, sKey StoreKey) bool
-	GetRWSet(rSet map[string][]byte, wSet map[string][]byte)
+	GetRWSet(Key StoreKey, rSet map[string][]byte, dirtySet map[string]StoreKeyValue)
 }
 
 // Alias iterator to db's Iterator for convenience.
@@ -307,6 +307,12 @@ const (
 	StoreTypeTransient
 	StoreTypeMemory
 )
+
+type StoreKeyValue struct {
+	Skey   StoreKey
+	Value  []byte
+	Delete bool
+}
 
 //----------------------------------------
 // Keys for accessing substores

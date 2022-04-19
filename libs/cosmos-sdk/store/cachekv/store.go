@@ -100,14 +100,18 @@ func (store *Store) IteratorCache(isdirty bool, cb func(key string, value []byte
 	return true
 }
 
-func (store *Store) GetRWSet(rSet map[string][]byte, wSet map[string][]byte) {
+func (store *Store) GetRWSet(sKey types.StoreKey, rSet map[string][]byte, dirtySet map[string]types.StoreKeyValue) {
 	for k, v := range store.readList {
 		rSet[k] = v
 	}
 	for k, v := range store.dirty {
-		if !bytes.Equal(v.value, rSet[k]) {
-			wSet[k] = v.value
+		//if !bytes.Equal(v.value, rSet[k]) {
+		dirtySet[k] = types.StoreKeyValue{
+			Value:  v.value,
+			Skey:   sKey,
+			Delete: v.deleted,
 		}
+		//}
 	}
 }
 

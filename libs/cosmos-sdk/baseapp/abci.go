@@ -176,6 +176,12 @@ func (app *BaseApp) EndBlock(req abci.RequestEndBlock) (res abci.ResponseEndBloc
 	}
 
 	go func() {
+		//if app.deliverState.ctx.BlockHeight() == 5810700 {
+		//	app.deliverState.ms.IteratorCache(true, func(key string, value []byte, isDirty bool, isDelete bool, storeKey types.StoreKey) bool {
+		//		fmt.Println("scf", hex.EncodeToString([]byte(key)), hex.EncodeToString(value), isDirty, isDelete)
+		//		return true
+		//	}, nil)
+		//}
 		app.deliverState.ms.Write()
 		app.parallelTxManage.commitDone <- struct{}{}
 	}()

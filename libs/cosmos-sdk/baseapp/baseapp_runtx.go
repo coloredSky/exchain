@@ -280,6 +280,7 @@ func (app *BaseApp) runTx_defer_recover(r interface{}, info *runTxInfo) error {
 		)
 
 	default:
+		//fmt.Println("!!!!!!!-------!!!!!!!!!!!!")
 		err = sdkerrors.Wrap(
 			sdkerrors.ErrPanic, fmt.Sprintf(
 				"recovered: %v\nstack:\n%v", r, string(debug.Stack()),
