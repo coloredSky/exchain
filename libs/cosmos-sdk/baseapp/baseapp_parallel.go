@@ -235,24 +235,21 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 	return app.runTxs(txWithIndex)
 }
 
-func (app *BaseApp) fixFeeCollector(ms sdk.CacheMultiStore) {
-	currTxFee := sdk.Coins{}
-	for index := 0; index < app.parallelTxManage.txSize; index++ {
-		resp := app.parallelTxManage.txReps[index]
-		//if resp == nil || resp.paraMsg == nil || resp.paraMsg.AnteErr != nil {
-		//	continue
-		//}
+func (app *BaseApp) fixFeeCollector(index int, ms sdk.CacheMultiStore) {
+	resp := app.parallelTxManage.txReps[index]
+	//if resp == nil || resp.paraMsg == nil || resp.paraMsg.AnteErr != nil {
+	//	continue
+	//}
 
-		if resp.paraMsg.AnteErr != nil {
-			continue
-		}
-		currTxFee = currTxFee.Add(app.parallelTxManage.extraTxsInfo[index].fee.Sub(resp.paraMsg.RefundFee)...)
+	if resp.paraMsg.AnteErr != nil {
+		return
 	}
+	app.parallelTxManage.currTxFee = app.parallelTxManage.currTxFee.Add(app.parallelTxManage.extraTxsInfo[index].fee.Sub(resp.paraMsg.RefundFee)...)
 
 	ctx, _ := app.cacheTxContext(app.getContextForTx(runTxModeDeliver, []byte{}), []byte{})
 
 	ctx.SetMultiStore(ms)
-	if err := app.updateFeeCollectorAccHandler(ctx, currTxFee); err != nil {
+	if err := app.updateFeeCollectorAccHandler(ctx, app.parallelTxManage.currTxFee); err != nil {
 		panic(err)
 	}
 }
@@ -335,6 +332,7 @@ func (app *BaseApp) runTxs(txs [][]byte) []*abci.ResponseDeliverTx {
 			}
 
 			pm.SetCurrentIndex(txIndex, res) //Commit
+			app.fixFeeCollector(txIndex, app.parallelTxManage.cms)
 			currentGas += uint64(res.resp.GasUsed)
 			txIndex++
 			if txIndex == pm.txSize {
@@ -367,7 +365,6 @@ func (app *BaseApp) runTxs(txs [][]byte) []*abci.ResponseDeliverTx {
 	if len(txs) > 0 {
 		//waiting for call back
 		<-signal
-		app.fixFeeCollector(pm.cms)
 		receiptsLogs := app.endParallelTxs()
 		for index, v := range receiptsLogs {
 			if len(v) != 0 { // only update evm tx result
@@ -586,8 +583,9 @@ type parallelTxManager struct {
 	preTxInGroup       map[int]int
 	txIndexWithGroupID map[int]int
 
-	mu  sync.RWMutex
-	cms sdk.CacheMultiStore
+	mu        sync.RWMutex
+	cms       sdk.CacheMultiStore
+	currTxFee sdk.Coins
 
 	txSize    int
 	cc        *conflictCheck
@@ -710,6 +708,7 @@ func (f *parallelTxManager) clear() {
 	}
 
 	f.currIndex = -1
+	f.currTxFee = sdk.Coins{}
 	f.cc.clear()
 
 	for key := range f.workgroup.markFailedStats {
