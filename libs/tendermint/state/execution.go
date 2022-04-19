@@ -2,7 +2,6 @@ package state
 
 import (
 	"fmt"
-	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
 	"strconv"
 	"time"
 
@@ -160,8 +159,7 @@ func (blockExec *BlockExecutor) ValidateBlock(state State, block *types.Block) e
 // It takes a blockID to avoid recomputing the parts hash.
 func (blockExec *BlockExecutor) ApplyBlock(
 	state State, blockID types.BlockID, block *types.Block) (State, int64, error) {
-	sdk.BeforeSB = time.Now()
-	
+
 	blockExec.proxyApp.ParallelTxs(transTxsToBytes(block.Txs), true)
 
 	if ApplyBlockPprofTime >= 0 {
@@ -442,7 +440,6 @@ func execBlockOnProxyApp(context *executionTask) (*ABCIResponses, error) {
 
 	go preDeliverRoutine(proxyAppConn, block.Txs, realTxCh, stopedCh)
 
-	ts := time.Now()
 	count := 0
 	for realTx := range realTxCh {
 		if realTx != nil {
@@ -463,7 +460,6 @@ func execBlockOnProxyApp(context *executionTask) (*ABCIResponses, error) {
 		count += 1
 	}
 	close(stopedCh)
-	sdk.ParaRunTxs += time.Now().Sub(ts)
 
 	// End block.
 	abciResponses.EndBlock, err = proxyAppConn.EndBlockSync(abci.RequestEndBlock{Height: block.Height})

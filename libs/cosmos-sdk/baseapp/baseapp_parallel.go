@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/viper"
 	"runtime"
 	"sync"
-	"time"
 )
 
 type extraDataForTx struct {
@@ -175,7 +174,6 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 		return app.runTxs()
 	}
 	go func() {
-		ts := time.Now()
 		pm := app.parallelTxManage
 		txSize := len(txs)
 		pm.workgroup.txs = txs
@@ -203,7 +201,6 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 				pm.haveCosmosTxInBlock = true
 			}
 		}
-		sdk.VerifyAndCalGroup += time.Now().Sub(ts)
 		pm.preLoadChan <- struct{}{}
 	}()
 	return nil
@@ -340,7 +337,6 @@ func (app *BaseApp) runTxs() []*abci.ResponseDeliverTx {
 
 	//waiting for call back
 	<-signal
-	ts := time.Now()
 	receiptsLogs := app.endParallelTxs()
 	for index, v := range receiptsLogs {
 		if len(v) != 0 { // only update evm tx result
@@ -349,7 +345,6 @@ func (app *BaseApp) runTxs() []*abci.ResponseDeliverTx {
 	}
 
 	pm.cms.Write()
-	sdk.FixLog += time.Now().Sub(ts)
 	return deliverTxs
 }
 
@@ -605,10 +600,6 @@ var (
 )
 
 func (pm *parallelTxManager) newIsConflict(e *executeResult) bool {
-	ts := time.Now()
-	defer func() {
-		sdk.CheckConfict += time.Now().Sub(ts)
-	}()
 	//base := pm.runBase[e.counter]
 	if e.ms == nil {
 		return true //TODO fix later
@@ -728,10 +719,6 @@ func (f *parallelTxManager) getRunBase(now int) int {
 }
 
 func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
-	ts := time.Now()
-	defer func() {
-		sdk.MergeToDeliverState += time.Now().Sub(ts)
-	}()
 	if res.ms == nil {
 		return
 	}

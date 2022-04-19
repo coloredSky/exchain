@@ -2,14 +2,12 @@ package state
 
 import (
 	"fmt"
-	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
 	abci "github.com/okex/exchain/libs/tendermint/abci/types"
 	"github.com/okex/exchain/libs/tendermint/libs/log"
 	"github.com/okex/exchain/libs/tendermint/proxy"
 	"github.com/okex/exchain/libs/tendermint/trace"
 	"github.com/okex/exchain/libs/tendermint/types"
 	dbm "github.com/okex/exchain/libs/tm-db"
-	"time"
 )
 
 var (
@@ -41,10 +39,7 @@ func execBlockOnProxyAppAsync(
 		return nil, err
 	}
 
-	sdk.BeforeBeginBlock += time.Now().Sub(sdk.BeforeSB)
-
 	if len(block.Txs) != 0 {
-		ts := time.Now()
 		abciResponses.DeliverTxs = proxyAppConn.ParallelTxs(transTxsToBytes(block.Txs), false)
 		for _, v := range abciResponses.DeliverTxs {
 			if v.Code == abci.CodeTypeOK {
@@ -53,7 +48,6 @@ func execBlockOnProxyAppAsync(
 				invalidTxs++
 			}
 		}
-		sdk.ParaRunTxs += time.Now().Sub(ts)
 	}
 
 	// End block.

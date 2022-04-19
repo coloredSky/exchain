@@ -1,10 +1,5 @@
 package types
 
-import (
-	"fmt"
-	"time"
-)
-
 //import "fmt"
 
 var (
@@ -50,21 +45,12 @@ type ScfLog struct {
 //}
 
 var (
-	BeforeSB = time.Now()
 
-	BeforeBeginBlock    = time.Duration(0)
-	VerifyAndCalGroup   = time.Duration(0)
-	CheckConfict        = time.Duration(0)
-	MergeToDeliverState = time.Duration(0)
-	FixLog              = time.Duration(0)
-	ParaRunTxs          = time.Duration(0)
+//MergeToDeliverState = time.Duration(0)
+
 )
 
 func PrintFucklog() {
-	fmt.Println("BeforeBeginBlock", BeforeBeginBlock.Seconds())
-	fmt.Println("VerifyAndCalGroup", VerifyAndCalGroup.Seconds())
-	fmt.Println("CheckConfict", CheckConfict.Seconds())
-	fmt.Println("MergeToDeliverState", MergeToDeliverState.Seconds())
-	fmt.Println("FixLog", FixLog.Seconds())
-	fmt.Println("ParaRunTxs", ParaRunTxs.Seconds())
+
+	//fmt.Println("MergeToDeliverState", MergeToDeliverState.Seconds())
 }
