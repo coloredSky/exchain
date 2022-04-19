@@ -57,6 +57,9 @@ var (
 	CheckConfict        = time.Duration(0)
 	MergeToDeliverState = time.Duration(0)
 	FixLog              = time.Duration(0)
+	ParaRunTxs          = time.Duration(0)
+
+	ClearPm = time.Duration(0)
 )
 
 func PrintFucklog() {
@@ -65,4 +68,6 @@ func PrintFucklog() {
 	fmt.Println("CheckConfict", CheckConfict.Seconds())
 	fmt.Println("MergeToDeliverState", MergeToDeliverState.Seconds())
 	fmt.Println("FixLog", FixLog.Seconds())
+	fmt.Println("ParaRunTxs", ParaRunTxs.Seconds())
+	fmt.Println("ClearPm", ClearPm.Seconds())
 }

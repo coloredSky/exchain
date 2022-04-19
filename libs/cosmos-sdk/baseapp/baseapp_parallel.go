@@ -671,6 +671,7 @@ func newParallelTxManager() *parallelTxManager {
 }
 
 func (f *parallelTxManager) clear() {
+	ts := time.Now()
 
 	f.txReps = nil
 	f.extraTxsInfo = nil
@@ -698,6 +699,7 @@ func (f *parallelTxManager) clear() {
 		delete(f.workgroup.markFailedStats, key)
 	}
 	f.workgroup.indexInAll = 0
+	sdk.ClearPm += time.Now().Sub(ts)
 }
 
 func (f *parallelTxManager) isReRun(txIndex int) bool {

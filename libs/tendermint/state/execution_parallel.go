@@ -43,6 +43,7 @@ func execBlockOnProxyAppAsync(
 
 	sdk.BeforeBeginBlock += time.Now().Sub(sdk.BeforeSB)
 
+	ts := time.Now()
 	abciResponses.DeliverTxs = proxyAppConn.ParallelTxs(transTxsToBytes(block.Txs), false)
 	for _, v := range abciResponses.DeliverTxs {
 		if v.Code == abci.CodeTypeOK {
@@ -51,6 +52,7 @@ func execBlockOnProxyAppAsync(
 			invalidTxs++
 		}
 	}
+	sdk.ParaRunTxs += time.Now().Sub(ts)
 
 	// End block.
 	abciResponses.EndBlock, err = proxyAppConn.EndBlockSync(abci.RequestEndBlock{Height: block.Height})
