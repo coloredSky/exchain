@@ -76,6 +76,20 @@ func (store *Store) Get(key []byte) (value []byte) {
 	return value
 }
 
+func (store *Store) SetKeys(kv map[types.StoreKey]map[string]types.StoreKeyValue) {
+	store.mtx.Lock()
+	defer store.mtx.Unlock()
+
+	dd := kv[types.NullStoreKey]
+	for k, v := range dd {
+		store.dirty[k] = cValue{
+			value:   v.Value,
+			dirty:   true,
+			deleted: v.Delete,
+		}
+	}
+}
+
 func (store *Store) IteratorCache(isdirty bool, cb func(key string, value []byte, isDirty bool, isDelete bool, sKey types.StoreKey) bool, sKey types.StoreKey) bool {
 	if cb == nil {
 		return true

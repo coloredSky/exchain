@@ -601,6 +601,10 @@ var (
 )
 
 func (pm *parallelTxManager) newIsConflict(e *executeResult) bool {
+	ts := time.Now()
+	defer func() {
+		sdk.CheckConflict += time.Now().Sub(ts)
+	}()
 	//base := pm.runBase[e.counter]
 	if e.ms == nil {
 		return true //TODO fix later
@@ -720,34 +724,44 @@ func (f *parallelTxManager) getRunBase(now int) int {
 }
 
 func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
+	ts := time.Now()
+	defer func() {
+		sdk.MergeToDeliverState += time.Now().Sub(ts)
+	}()
 	if res.ms == nil {
 		return
 	}
 
 	f.mu.Lock()
-	ts := time.Now()
+
+	ans := make(map[types.StoreKey]map[string]types.StoreKeyValue)
+
 	for key, value := range res.dirtySet {
 		f.cc.update(key, value.Value, txIndex)
-	}
-	sdk.Merge1 += time.Now().Sub(ts)
 
-	mp := make(map[types.StoreKey]types.KVStore)
-
-	ts = time.Now()
-	for key, value := range res.dirtySet {
-		currKy := mp[value.Skey]
-		if currKy == nil {
-			currKy = f.cms.GetKVStore(value.Skey)
-			mp[value.Skey] = currKy
+		if _, ok := ans[value.Skey]; !ok {
+			ans[value.Skey] = make(map[string]types.StoreKeyValue)
 		}
-
-		if value.Delete {
-			currKy.Delete([]byte(key))
-		} else {
-			currKy.Set([]byte(key), value.Value)
-		}
+		ans[value.Skey][key] = value
 	}
-	sdk.Merge2 += time.Now().Sub(ts)
+
+	f.cms.SetKeys(ans)
+
+	//mp := make(map[types.StoreKey]types.KVStore)
+	//
+	//for key, value := range res.dirtySet {
+	//	currKy := mp[value.Skey]
+	//	if currKy == nil {
+	//		currKy = f.cms.GetKVStore(value.Skey)
+	//		mp[value.Skey] = currKy
+	//	}
+	//
+	//	if value.Delete {
+	//		currKy.Delete([]byte(key))
+	//	} else {
+	//		currKy.Set([]byte(key), value.Value)
+	//	}
+	//}
 
 	f.currIndex = txIndex
 	f.mu.Unlock()
