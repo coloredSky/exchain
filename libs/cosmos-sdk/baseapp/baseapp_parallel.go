@@ -181,6 +181,7 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 		fmt.Println("???-end", len(txs))
 		return app.runTxs()
 	}
+	fmt.Println("addPreLoadChan", len(txs))
 	ts := time.Now()
 	pm := app.parallelTxManage
 	txSize := len(txs)
@@ -211,9 +212,8 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 		}
 	}
 	sdk.VerifyAndCalGroup += time.Now().Sub(ts)
-	fmt.Println("addPreLoadChan")
 	pm.preLoadChan <- struct{}{}
-	fmt.Println("addPreLoadChan", "end")
+	fmt.Println("addPreLoadChan", "end", len(txs))
 
 	return nil
 }
