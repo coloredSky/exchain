@@ -2,6 +2,7 @@ package baseapp
 
 import (
 	"bytes"
+	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/okex/exchain/libs/cosmos-sdk/store/types"
@@ -48,7 +49,7 @@ func (app *BaseApp) getExtraDataByTxs() {
 				}
 				return
 			}
-			coin, isEvm, s, toAddr := app.getTxFee(app.getContextForTx(runTxModeDeliver, txBytes), tx)
+			coin, isEvm, s, toAddr := app.getTxFee(app.getContextForTx(runTxModeSimulate, txBytes), tx)
 			para.extraTxsInfo[index] = &extraDataForTx{
 				fee:   coin,
 				isEvm: isEvm,
@@ -174,6 +175,12 @@ func (app *BaseApp) paraLoadSender(txs [][]byte) {
 }
 
 func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.ResponseDeliverTx {
+	if !onlyCalSender {
+		fmt.Println("???", len(txs))
+		<-app.parallelTxManage.preLoadChan
+		fmt.Println("???-end", len(txs))
+		return app.runTxs()
+	}
 	ts := time.Now()
 	pm := app.parallelTxManage
 	txSize := len(txs)
@@ -185,21 +192,11 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 	pm.workgroup.runningStatus = make([]int, txSize)
 	pm.workgroup.isrunning = make([]bool, txSize)
 
-	if txSize == 0 {
-		return make([]*abci.ResponseDeliverTx, 0)
-	}
-
-	if onlyCalSender {
-		app.paraLoadSender(txs)
-		return nil
-	}
-
 	app.getExtraDataByTxs()
 
 	app.calGroup()
 
 	pm.isAsyncDeliverTx = true
-	pm.cms = app.deliverState.ms.CacheMultiStore()
 	pm.runBase = make([]int, txSize)
 
 	evmIndex := uint32(0)
@@ -214,7 +211,11 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 		}
 	}
 	sdk.VerifyAndCalGroup += time.Now().Sub(ts)
-	return app.runTxs()
+	fmt.Println("addPreLoadChan")
+	pm.preLoadChan <- struct{}{}
+	fmt.Println("addPreLoadChan", "end")
+
+	return nil
 }
 
 func (app *BaseApp) fixFeeCollector(index int, ms sdk.CacheMultiStore) {
@@ -254,6 +255,7 @@ func (app *BaseApp) runTxs() []*abci.ResponseDeliverTx {
 	txIndex := 0
 
 	pm := app.parallelTxManage
+	pm.cms = app.deliverState.ms.CacheMultiStore()
 
 	txReps := pm.txReps
 	deliverTxs := make([]*abci.ResponseDeliverTx, pm.txSize)
@@ -551,6 +553,8 @@ func (a *asyncWorkGroup) Start() {
 }
 
 type parallelTxManager struct {
+	preLoadChan chan struct{}
+
 	haveCosmosTxInBlock bool
 	isAsyncDeliverTx    bool
 	workgroup           *asyncWorkGroup
@@ -655,6 +659,8 @@ type task struct {
 func newParallelTxManager() *parallelTxManager {
 	isAsync := viper.GetBool(sm.FlagParalleledTx)
 	return &parallelTxManager{
+		preLoadChan: make(chan struct{}, 1),
+
 		isAsyncDeliverTx: isAsync,
 		workgroup:        newAsyncWorkGroup(isAsync),
 

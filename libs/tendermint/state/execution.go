@@ -161,6 +161,9 @@ func (blockExec *BlockExecutor) ValidateBlock(state State, block *types.Block) e
 func (blockExec *BlockExecutor) ApplyBlock(
 	state State, blockID types.BlockID, block *types.Block) (State, int64, error) {
 	sdk.BeforeSB = time.Now()
+
+	go blockExec.proxyApp.ParallelTxs(transTxsToBytes(block.Txs), true)
+
 	if ApplyBlockPprofTime >= 0 {
 		f, t := PprofStart()
 		defer PprofEnd(int(block.Height), f, t)
