@@ -162,6 +162,7 @@ func (blockExec *BlockExecutor) ApplyBlock(
 	state State, blockID types.BlockID, block *types.Block) (State, int64, error) {
 	sdk.BeforeSB = time.Now()
 
+	fmt.Println("execute", len(block.Txs), block.Height)
 	go blockExec.proxyApp.ParallelTxs(transTxsToBytes(block.Txs), true)
 
 	if ApplyBlockPprofTime >= 0 {
