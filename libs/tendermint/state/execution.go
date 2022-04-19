@@ -163,7 +163,7 @@ func (blockExec *BlockExecutor) ApplyBlock(
 	sdk.BeforeSB = time.Now()
 
 	fmt.Println("execute", len(block.Txs), block.Height)
-	go blockExec.proxyApp.ParallelTxs(transTxsToBytes(block.Txs), true)
+	blockExec.proxyApp.ParallelTxs(transTxsToBytes(block.Txs), true)
 
 	if ApplyBlockPprofTime >= 0 {
 		f, t := PprofStart()

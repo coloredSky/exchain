@@ -181,39 +181,41 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 		fmt.Println("???-end", len(txs))
 		return app.runTxs()
 	}
-	fmt.Println("addPreLoadChan", len(txs))
-	ts := time.Now()
-	pm := app.parallelTxManage
-	txSize := len(txs)
-	pm.workgroup.txs = txs
-	pm.txSize = txSize
-	pm.haveCosmosTxInBlock = false
-	pm.txReps = make([]*executeResult, txSize)
-	pm.extraTxsInfo = make([]*extraDataForTx, txSize)
-	pm.workgroup.runningStatus = make([]int, txSize)
-	pm.workgroup.isrunning = make([]bool, txSize)
+	go func() {
+		fmt.Println("addPreLoadChan", len(txs))
+		ts := time.Now()
+		pm := app.parallelTxManage
+		txSize := len(txs)
+		pm.workgroup.txs = txs
+		pm.txSize = txSize
+		pm.haveCosmosTxInBlock = false
+		pm.txReps = make([]*executeResult, txSize)
+		pm.extraTxsInfo = make([]*extraDataForTx, txSize)
+		pm.workgroup.runningStatus = make([]int, txSize)
+		pm.workgroup.isrunning = make([]bool, txSize)
 
-	app.getExtraDataByTxs()
+		app.getExtraDataByTxs()
 
-	app.calGroup()
+		app.calGroup()
 
-	pm.isAsyncDeliverTx = true
-	pm.runBase = make([]int, txSize)
+		pm.isAsyncDeliverTx = true
+		pm.runBase = make([]int, txSize)
 
-	evmIndex := uint32(0)
-	for index := range txs {
-		pm.extraTxsInfo[index].indexInBlock = uint32(index)
-		if pm.extraTxsInfo[index].isEvm {
-			pm.extraTxsInfo[index].evmIndex = evmIndex
-			evmIndex++
-		} else {
-			pm.haveCosmosTxInBlock = true
-			//fmt.Println("haveCosmosTxInBlock")
+		evmIndex := uint32(0)
+		for index := range txs {
+			pm.extraTxsInfo[index].indexInBlock = uint32(index)
+			if pm.extraTxsInfo[index].isEvm {
+				pm.extraTxsInfo[index].evmIndex = evmIndex
+				evmIndex++
+			} else {
+				pm.haveCosmosTxInBlock = true
+				//fmt.Println("haveCosmosTxInBlock")
+			}
 		}
-	}
-	sdk.VerifyAndCalGroup += time.Now().Sub(ts)
-	pm.preLoadChan <- struct{}{}
-	fmt.Println("addPreLoadChan", "end", len(txs))
+		sdk.VerifyAndCalGroup += time.Now().Sub(ts)
+		pm.preLoadChan <- struct{}{}
+		fmt.Println("addPreLoadChan", "end", len(txs))
+	}()
 
 	return nil
 }
