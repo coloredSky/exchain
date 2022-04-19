@@ -50,12 +50,16 @@ type ScfLog struct {
 //}
 
 var (
-	CheckConflict       = time.Duration(0)
-	MergeToDeliverState = time.Duration(0)
+
+	//MergeToDeliverState = time.Duration(0)
+
+	Merge1 = time.Duration(0)
+	Merge2 = time.Duration(0)
 )
 
 func PrintFucklog() {
 
-	fmt.Println("CheckConflict", CheckConflict.Seconds())
-	fmt.Println("MergeToDeliverState", MergeToDeliverState.Seconds())
+	//fmt.Println("MergeToDeliverState", MergeToDeliverState.Seconds())
+	fmt.Println("Merge1", Merge1)
+	fmt.Println("Merge2", Merge2)
 }

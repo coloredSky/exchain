@@ -137,12 +137,6 @@ func (cms Store) Write() {
 	}
 }
 
-func (cms Store) SetKeys(kv map[types.StoreKey]map[string]types.StoreKeyValue) {
-	for key, store := range cms.stores {
-		store.SetKeys(map[types.StoreKey]map[string]types.StoreKeyValue{types.NullStoreKey: kv[key]})
-	}
-}
-
 func (cms Store) IteratorCache(isdirty bool, cb func(key string, value []byte, isDirty bool, isDelete bool, storeKey types.StoreKey) bool, sKey types.StoreKey) bool {
 	for key, store := range cms.stores {
 		if !store.IteratorCache(isdirty, cb, key) {
