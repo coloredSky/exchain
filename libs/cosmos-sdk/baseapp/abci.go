@@ -1,8 +1,10 @@
 package baseapp
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/okex/exchain/libs/cosmos-sdk/store/types"
 	"os"
 	"sort"
 	"strconv"
@@ -176,6 +178,14 @@ func (app *BaseApp) EndBlock(req abci.RequestEndBlock) (res abci.ResponseEndBloc
 	}
 
 	go func() {
+
+		if app.deliverState.ctx.BlockHeight() == 2859685 {
+			app.deliverState.ms.IteratorCache(true, func(key string, value []byte, isDirty bool, isDelete bool, storeKey types.StoreKey) bool {
+				fmt.Println("scf", hex.EncodeToString([]byte(key)), hex.EncodeToString(value), isDelete, isDirty)
+				return true
+			}, nil)
+		}
+
 		app.deliverState.ms.Write()
 		app.parallelTxManage.commitDone <- struct{}{}
 	}()
