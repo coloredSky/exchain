@@ -386,6 +386,7 @@ func (app *BaseApp) deliverTxWithCache(txIndex int) *executeResult {
 	)
 	mode = runTxModeDeliverInAsync
 	info, errM := app.runTxWithIndex(txIndex, mode, app.parallelTxManage.workgroup.txs[txIndex], txStatus.stdTx, LatestSimulateTxHeight)
+	fmt.Println("errM", txIndex, errM)
 	g, r, m, e := info.gInfo, info.result, info.msCacheAnte, errM
 	if e != nil {
 		resp = sdkerrors.ResponseDeliverTx(e, g.GasWanted, g.GasUsed, app.trace)
