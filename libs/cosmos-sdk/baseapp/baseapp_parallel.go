@@ -2,7 +2,6 @@ package baseapp
 
 import (
 	"bytes"
-	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/okex/exchain/libs/cosmos-sdk/store/types"
@@ -176,13 +175,10 @@ func (app *BaseApp) paraLoadSender(txs [][]byte) {
 
 func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.ResponseDeliverTx {
 	if !onlyCalSender {
-		fmt.Println("???", len(txs))
 		<-app.parallelTxManage.preLoadChan
-		fmt.Println("???-end", len(txs))
 		return app.runTxs()
 	}
 	go func() {
-		fmt.Println("addPreLoadChan", len(txs))
 		ts := time.Now()
 		pm := app.parallelTxManage
 		txSize := len(txs)
@@ -209,12 +205,10 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 				evmIndex++
 			} else {
 				pm.haveCosmosTxInBlock = true
-				//fmt.Println("haveCosmosTxInBlock")
 			}
 		}
 		sdk.VerifyAndCalGroup += time.Now().Sub(ts)
 		pm.preLoadChan <- struct{}{}
-		fmt.Println("addPreLoadChan", "end", len(txs))
 	}()
 
 	return nil
