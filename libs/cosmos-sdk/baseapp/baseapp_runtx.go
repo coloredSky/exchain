@@ -307,7 +307,6 @@ func (app *BaseApp) asyncDeliverTx(txIndex int) {
 
 	var resp abci.ResponseDeliverTx
 	info, errM := app.runTxWithIndex(txIndex, runTxModeDeliverInAsync, app.parallelTxManage.workgroup.txs[txIndex], txStatus.stdTx, LatestSimulateTxHeight)
-	fmt.Println("asyncDeliverTx--", txIndex, errM)
 	if errM != nil {
 		resp = sdkerrors.ResponseDeliverTx(errM, info.gInfo.GasWanted, info.gInfo.GasUsed, app.trace)
 	} else {
