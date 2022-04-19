@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/viper"
 	"runtime"
 	"sync"
+	"time"
 )
 
 type extraDataForTx struct {
@@ -724,14 +725,21 @@ func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
 	}
 
 	f.mu.Lock()
+	ts := time.Now()
 	for key, value := range res.dirtySet {
 		f.cc.update(key, value.Value, txIndex)
+	}
+	sdk.Merge1 += time.Now().Sub(ts)
+
+	ts = time.Now()
+	for key, value := range res.dirtySet {
 		if value.Delete {
 			f.cms.GetKVStore(value.Skey).Delete([]byte(key))
 		} else {
 			f.cms.GetKVStore(value.Skey).Set([]byte(key), value.Value)
 		}
 	}
+	sdk.Merge2 += time.Now().Sub(ts)
 
 	f.currIndex = txIndex
 	f.mu.Unlock()
