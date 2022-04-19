@@ -2,7 +2,6 @@ package baseapp
 
 import (
 	"bytes"
-	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/okex/exchain/libs/cosmos-sdk/store/types"
@@ -227,7 +226,6 @@ func (app *BaseApp) fixFeeCollector(index int, ms sdk.CacheMultiStore) {
 
 	app.parallelTxManage.currTxFee = app.parallelTxManage.currTxFee.Add(app.parallelTxManage.extraTxsInfo[index].fee.Sub(resp.paraMsg.RefundFee)...)
 
-	fmt.Println("currTxFee", app.parallelTxManage.currTxFee.String(), app.parallelTxManage.extraTxsInfo[index].fee.String(), resp.paraMsg.RefundFee.String())
 	ctx, _ := app.cacheTxContext(app.getContextForTx(runTxModeDeliver, []byte{}), []byte{})
 
 	ctx.SetMultiStore(ms)
