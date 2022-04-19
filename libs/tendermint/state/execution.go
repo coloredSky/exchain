@@ -439,6 +439,7 @@ func execBlockOnProxyApp(context *executionTask) (*ABCIResponses, error) {
 
 	go preDeliverRoutine(proxyAppConn, block.Txs, realTxCh, stopedCh)
 
+	ts := time.Now()
 	count := 0
 	for realTx := range realTxCh {
 		if realTx != nil {
@@ -459,6 +460,7 @@ func execBlockOnProxyApp(context *executionTask) (*ABCIResponses, error) {
 		count += 1
 	}
 	close(stopedCh)
+	sdk.ParaRunTxs += time.Now().Sub(ts)
 
 	// End block.
 	abciResponses.EndBlock, err = proxyAppConn.EndBlockSync(abci.RequestEndBlock{Height: block.Height})
