@@ -625,7 +625,6 @@ func (p *parallelTxManager) isConflict(base int, key string, readValue []byte, t
 func newParallelTxManager() *parallelTxManager {
 	isAsync := viper.GetBool(sm.FlagParalleledTx)
 	return &parallelTxManager{
-		preLoadChan: make(chan struct{}, 1),
 
 		isAsyncDeliverTx: isAsync,
 		workgroup:        newAsyncWorkGroup(isAsync),
@@ -635,10 +634,9 @@ func newParallelTxManager() *parallelTxManager {
 		preTxInGroup:       make(map[int]int),
 		txIndexWithGroupID: make(map[int]int),
 
-		cc:         newConflictCheck(),
-		currIndex:  -1,
-		runBase:    make([]int, 0),
-		commitDone: make(chan struct{}, 1),
+		cc:        newConflictCheck(),
+		currIndex: -1,
+		runBase:   make([]int, 0),
 	}
 }
 
