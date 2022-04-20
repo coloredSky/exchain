@@ -170,6 +170,9 @@ func (app *BaseApp) paraLoadSender(txs [][]byte) {
 }
 
 func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.ResponseDeliverTx {
+	if len(txs) == 0 {
+		return make([]*abci.ResponseDeliverTx, 0)
+	}
 
 	pm := app.parallelTxManage
 	txSize := len(txs)

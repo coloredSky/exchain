@@ -39,14 +39,12 @@ func execBlockOnProxyAppAsync(
 		return nil, err
 	}
 
-	if len(block.Txs) != 0 {
-		abciResponses.DeliverTxs = proxyAppConn.ParallelTxs(transTxsToBytes(block.Txs), false)
-		for _, v := range abciResponses.DeliverTxs {
-			if v.Code == abci.CodeTypeOK {
-				validTxs++
-			} else {
-				invalidTxs++
-			}
+	abciResponses.DeliverTxs = proxyAppConn.ParallelTxs(transTxsToBytes(block.Txs), false)
+	for _, v := range abciResponses.DeliverTxs {
+		if v.Code == abci.CodeTypeOK {
+			validTxs++
+		} else {
+			invalidTxs++
 		}
 	}
 

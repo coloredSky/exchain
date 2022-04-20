@@ -370,7 +370,6 @@ func (c *OecConfig) update(key, value interface{}) {
 		}
 		c.SetParalleledTxStatus(r)
 	}
-
 }
 
 func (c *OecConfig) GetEnableAnalyzer() bool {
