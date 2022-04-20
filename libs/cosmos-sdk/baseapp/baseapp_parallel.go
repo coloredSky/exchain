@@ -170,40 +170,35 @@ func (app *BaseApp) paraLoadSender(txs [][]byte) {
 }
 
 func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.ResponseDeliverTx {
-	if !onlyCalSender {
-		<-app.parallelTxManage.preLoadChan
-		return app.runTxs()
-	}
-	go func() {
-		pm := app.parallelTxManage
-		txSize := len(txs)
-		pm.workgroup.txs = txs
-		pm.txSize = txSize
-		pm.haveCosmosTxInBlock = false
-		pm.txReps = make([]*executeResult, txSize)
-		pm.extraTxsInfo = make([]*extraDataForTx, txSize)
-		pm.workgroup.runningStatus = make([]int, txSize)
-		pm.workgroup.isrunning = make([]bool, txSize)
 
-		app.getExtraDataByTxs()
+	pm := app.parallelTxManage
+	txSize := len(txs)
+	pm.workgroup.txs = txs
+	pm.txSize = txSize
+	pm.haveCosmosTxInBlock = false
+	pm.txReps = make([]*executeResult, txSize)
+	pm.extraTxsInfo = make([]*extraDataForTx, txSize)
+	pm.workgroup.runningStatus = make([]int, txSize)
+	pm.workgroup.isrunning = make([]bool, txSize)
 
-		app.calGroup()
+	app.getExtraDataByTxs()
 
-		pm.isAsyncDeliverTx = true
-		pm.runBase = make([]int, txSize)
+	app.calGroup()
 
-		evmIndex := uint32(0)
-		for index := range txs {
-			pm.extraTxsInfo[index].indexInBlock = uint32(index)
-			if pm.extraTxsInfo[index].isEvm {
-				pm.extraTxsInfo[index].evmIndex = evmIndex
-				evmIndex++
-			} else {
-				pm.haveCosmosTxInBlock = true
-			}
+	pm.isAsyncDeliverTx = true
+	pm.runBase = make([]int, txSize)
+
+	evmIndex := uint32(0)
+	for index := range txs {
+		pm.extraTxsInfo[index].indexInBlock = uint32(index)
+		if pm.extraTxsInfo[index].isEvm {
+			pm.extraTxsInfo[index].evmIndex = evmIndex
+			evmIndex++
+		} else {
+			pm.haveCosmosTxInBlock = true
 		}
-		pm.preLoadChan <- struct{}{}
-	}()
+	}
+	return app.runTxs()
 	return nil
 }
 
@@ -540,8 +535,6 @@ func (a *asyncWorkGroup) Start() {
 }
 
 type parallelTxManager struct {
-	preLoadChan chan struct{}
-
 	haveCosmosTxInBlock bool
 	isAsyncDeliverTx    bool
 	workgroup           *asyncWorkGroup
@@ -562,8 +555,6 @@ type parallelTxManager struct {
 	cc        *conflictCheck
 	currIndex int
 	runBase   []int
-
-	commitDone chan struct{}
 }
 type A struct {
 	value   []byte

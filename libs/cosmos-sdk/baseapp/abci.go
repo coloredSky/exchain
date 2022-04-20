@@ -175,16 +175,6 @@ func (app *BaseApp) EndBlock(req abci.RequestEndBlock) (res abci.ResponseEndBloc
 		res = app.endBlocker(app.deliverState.ctx, req)
 	}
 
-	go func() {
-		//if app.deliverState.ctx.BlockHeight() == 5810700 {
-		//	app.deliverState.ms.IteratorCache(true, func(key string, value []byte, isDirty bool, isDelete bool, storeKey types.StoreKey) bool {
-		//		fmt.Println("scf", hex.EncodeToString([]byte(key)), hex.EncodeToString(value), isDirty, isDelete)
-		//		return true
-		//	}, nil)
-		//}
-		app.deliverState.ms.Write()
-		app.parallelTxManage.commitDone <- struct{}{}
-	}()
 	return
 }
 
@@ -236,11 +226,7 @@ func (app *BaseApp) Commit(req abci.RequestCommit) abci.ResponseCommit {
 
 	header := app.deliverState.ctx.BlockHeader()
 
-	if app.parallelTxManage.isAsyncDeliverTx {
-		<-app.parallelTxManage.commitDone
-	} else {
-		app.deliverState.ms.Write()
-	}
+	app.deliverState.ms.Write()
 
 	// Write the DeliverTx state which is cache-wrapped and commit the MultiStore.
 	// The write to the DeliverTx state writes all state transitions to the root
