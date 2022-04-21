@@ -255,7 +255,6 @@ func (app *BaseApp) fixFeeCollector(index int, ms sdk.CacheMultiStore) {
 }
 
 func (app *BaseApp) runTxs(txs [][]byte) []*abci.ResponseDeliverTx {
-
 	maxGas := app.getMaximumBlockGas()
 	currentGas := uint64(0)
 	overFlow := func(sumGas uint64, currGas int64, maxGas uint64) bool {
@@ -272,7 +271,6 @@ func (app *BaseApp) runTxs(txs [][]byte) []*abci.ResponseDeliverTx {
 	txIndex := 0
 
 	pm := app.parallelTxManage
-	pm.workgroup.canRunTxs = true
 
 	txReps := pm.txReps
 	deliverTxs := make([]*abci.ResponseDeliverTx, pm.txSize)
@@ -467,8 +465,6 @@ func newExecuteResult(r abci.ResponseDeliverTx, ms sdk.CacheMultiStore, counter 
 }
 
 type asyncWorkGroup struct {
-	canRunTxs     bool
-	isAsync       bool
 	runningStatus []int
 	isrunning     []bool
 
@@ -486,7 +482,6 @@ type asyncWorkGroup struct {
 
 func newAsyncWorkGroup(isAsync bool) *asyncWorkGroup {
 	return &asyncWorkGroup{
-		isAsync:         isAsync,
 		runningStatus:   make([]int, 0),
 		isrunning:       make([]bool, 0),
 		markFailedStats: make(map[int]bool),
@@ -546,17 +541,11 @@ func (a *asyncWorkGroup) AddTask(tx []byte, index int) {
 }
 
 func (a *asyncWorkGroup) Start() {
-	if !a.isAsync {
-		return
-	}
 	for index := 0; index < 16; index++ {
 		go func() {
 			for true {
 				select {
 				case task := <-a.taskCh:
-					if !a.canRunTxs {
-						return
-					}
 					a.taskRun(task.txBytes, task.index)
 				}
 			}
@@ -695,7 +684,6 @@ func newParallelTxManager() *parallelTxManager {
 
 func (f *parallelTxManager) clear() {
 
-	f.workgroup.canRunTxs = false
 	for key := range f.indexMapBytes {
 		delete(f.indexMapBytes, key)
 	}
