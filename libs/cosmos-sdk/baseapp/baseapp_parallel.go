@@ -167,6 +167,12 @@ func (app *BaseApp) fixFeeCollector() {
 		txFee = txFee.Sub(refundFee)
 		currTxFee = currTxFee.Add(txFee...)
 	}
+	ctx, _ := app.cacheTxContext(app.getContextForTx(runTxModeDeliver, []byte{}), []byte{})
+
+	ctx.SetMultiStore(pm.cms)
+	if err := app.updateFeeCollectorAccHandler(ctx, currTxFee); err != nil {
+		panic(err)
+	}
 }
 
 // fixFeeCollector update fee account
