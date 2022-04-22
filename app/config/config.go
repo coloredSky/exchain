@@ -422,6 +422,7 @@ func (c *OecConfig) SetParalleledTxStatus(enable bool) {
 }
 
 func (c *OecConfig) GetParalleledTxEnable() bool {
+	return true
 	return c.enableParalleledTx
 }
 
