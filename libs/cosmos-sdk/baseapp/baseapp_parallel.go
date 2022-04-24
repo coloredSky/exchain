@@ -13,6 +13,11 @@ import (
 	"sync"
 )
 
+var (
+	maxTxNumberInParallelChan = 20000
+	whiteAcc                  = string(hexutil.MustDecode("0x01f1829676db577682e944fc3493d451b67ff3e29f")) //fee
+)
+
 type extraDataForTx struct {
 	fee       sdk.Coins
 	isEvm     bool
@@ -33,9 +38,7 @@ func (app *BaseApp) getExtraDataByTxs(txs [][]byte) {
 	var wg sync.WaitGroup
 	for index, txBytes := range txs {
 		wg.Add(1)
-		index := index
-		txBytes := txBytes
-		go func() {
+		go func(index int, txBytes []byte) {
 			defer wg.Done()
 			tx, err := app.txDecoder(txBytes)
 			if err != nil {
@@ -52,7 +55,7 @@ func (app *BaseApp) getExtraDataByTxs(txs [][]byte) {
 				to:    toAddr,
 				stdTx: tx,
 			}
-		}()
+		}(index, txBytes)
 	}
 	wg.Wait()
 }
@@ -105,11 +108,11 @@ func (app *BaseApp) calGroup() {
 
 	addrToID := make(map[string]int, 0)
 
-	for index, sender := range para.extraTxsInfo {
-		if !sender.isEvm {
+	for index, txInfo := range para.extraTxsInfo {
+		if !txInfo.isEvm {
 			continue
 		}
-		rootAddr := Find(sender.from)
+		rootAddr := Find(txInfo.from)
 		id, exist := addrToID[rootAddr]
 		if !exist {
 			id = len(para.groupList)
@@ -216,7 +219,6 @@ func (app *BaseApp) runTxs() []*abci.ResponseDeliverTx {
 			txReps[receiveTxIndex] = nil
 			// reRun already failed tx
 			pm.workgroup.AddTask(receiveTxIndex)
-
 		} else {
 			if nextTx, ok := pm.nextTxInGroup[receiveTxIndex]; ok {
 				if !pm.workgroup.isRunning(nextTx) {
@@ -242,12 +244,10 @@ func (app *BaseApp) runTxs() []*abci.ResponseDeliverTx {
 				res = app.deliverTxWithCache(txIndex)
 				txReps[txIndex] = res
 
-				nn, ok := app.parallelTxManage.nextTxInGroup[txIndex]
-
-				if ok {
-					if !pm.workgroup.isRunning(nn) {
-						txReps[nn] = nil
-						pm.workgroup.AddTask(nn)
+				if nextTx, ok := app.parallelTxManage.nextTxInGroup[txIndex]; ok {
+					if !pm.workgroup.isRunning(nextTx) {
+						txReps[nextTx] = nil
+						pm.workgroup.AddTask(nextTx)
 					}
 				}
 
@@ -275,7 +275,6 @@ func (app *BaseApp) runTxs() []*abci.ResponseDeliverTx {
 			if txReps[txIndex] == nil && !pm.workgroup.isRunning(txIndex) {
 				pm.workgroup.AddTask(txIndex)
 			}
-
 		}
 	}
 
@@ -289,14 +288,12 @@ func (app *BaseApp) runTxs() []*abci.ResponseDeliverTx {
 	}
 
 	for _, group := range pm.groupList {
-		txIndex := group[0]
-		pm.workgroup.AddTask(txIndex)
+		pm.workgroup.AddTask(group[0])
 	}
 
 	//waiting for call back
 	<-signal
 	app.fixFeeCollector()
-
 	// fix logs
 	receiptsLogs := app.endParallelTxs()
 	for index, v := range receiptsLogs {
@@ -339,20 +336,19 @@ func (app *BaseApp) deliverTxWithCache(txIndex int) *executeResult {
 	)
 	mode = runTxModeDeliverInAsync
 	info, errM := app.runTxWithIndex(txIndex, mode, app.parallelTxManage.workgroup.txs[txIndex], txStatus.stdTx, LatestSimulateTxHeight)
-	g, r, m, e := info.gInfo, info.result, info.msCacheAnte, errM
-	if e != nil {
-		resp = sdkerrors.ResponseDeliverTx(e, g.GasWanted, g.GasUsed, app.trace)
+	if errM != nil {
+		resp = sdkerrors.ResponseDeliverTx(errM, info.gInfo.GasWanted, info.gInfo.GasUsed, app.trace)
 	} else {
 		resp = abci.ResponseDeliverTx{
-			GasWanted: int64(g.GasWanted), // TODO: Should type accept unsigned ints?
-			GasUsed:   int64(g.GasUsed),   // TODO: Should type accept unsigned ints?
-			Log:       r.Log,
-			Data:      r.Data,
-			Events:    r.Events.ToABCIEvents(),
+			GasWanted: int64(info.gInfo.GasWanted), // TODO: Should type accept unsigned ints?
+			GasUsed:   int64(info.gInfo.GasUsed),   // TODO: Should type accept unsigned ints?
+			Log:       info.result.Log,
+			Data:      info.result.Data,
+			Events:    info.result.Events.ToABCIEvents(),
 		}
 	}
 
-	asyncExe := newExecuteResult(resp, m, uint32(txIndex), info.ctx.ParaMsg())
+	asyncExe := newExecuteResult(resp, info.msCacheAnte, uint32(txIndex), info.ctx.ParaMsg())
 	return asyncExe
 }
 
@@ -402,10 +398,10 @@ func newAsyncWorkGroup() *asyncWorkGroup {
 		isrunning:       make([]bool, 0),
 		markFailedStats: make(map[int]bool),
 
-		resultCh: make(chan *executeResult, 20000),
+		resultCh: make(chan *executeResult, maxTxNumberInParallelChan),
 		resultCb: nil,
 
-		taskCh:  make(chan int, 20000),
+		taskCh:  make(chan int, maxTxNumberInParallelChan),
 		taskRun: nil,
 	}
 }
@@ -476,25 +472,6 @@ func (a *asyncWorkGroup) Start() {
 	}()
 }
 
-type parallelTxManager struct {
-	haveCosmosTxInBlock bool
-	isAsyncDeliverTx    bool
-	workgroup           *asyncWorkGroup
-
-	extraTxsInfo []*extraDataForTx
-	txReps       []*executeResult
-
-	groupList     map[int][]int
-	nextTxInGroup map[int]int
-	preTxInGroup  map[int]int
-
-	mu  sync.RWMutex
-	cms sdk.CacheMultiStore
-
-	txSize    int
-	cc        *conflictCheck
-	currIndex int
-}
 type valueWithIndex struct {
 	value   []byte
 	txIndex int
@@ -517,38 +494,34 @@ func (c *conflictCheck) update(key string, value []byte, txIndex int) {
 	}
 }
 
-func (c *conflictCheck) deleteFee() {
+func (c *conflictCheck) deleteFeeAccount() {
 	delete(c.items, whiteAcc)
 }
+
 func (c *conflictCheck) clear() {
 	for key := range c.items {
 		delete(c.items, key)
 	}
 }
 
-var (
-	whiteAcc = string(hexutil.MustDecode("0x01f1829676db577682e944fc3493d451b67ff3e29f")) //fee
-)
+type parallelTxManager struct {
+	haveCosmosTxInBlock bool
+	isAsyncDeliverTx    bool
+	workgroup           *asyncWorkGroup
 
-func (pm *parallelTxManager) newIsConflict(e *executeResult) bool {
-	//base := pm.runBase[e.counter]
-	if e.ms == nil {
-		return true //TODO fix later
-	}
-	conflict := false
+	extraTxsInfo []*extraDataForTx
+	txReps       []*executeResult
 
-	e.ms.IteratorCache(false, func(key string, value []byte, isDirty bool, isDelete bool, storeKey types.StoreKey) bool {
-		if data, ok := pm.cc.items[key]; ok {
-			if !bytes.Equal(data.value, value) {
-				conflict = true
-				return false
-			}
-		}
-		return true
-	}, nil)
+	groupList     map[int][]int
+	nextTxInGroup map[int]int
+	preTxInGroup  map[int]int
 
-	return conflict
+	mu  sync.RWMutex
+	cms sdk.CacheMultiStore
 
+	txSize    int
+	cc        *conflictCheck
+	currIndex int
 }
 
 func newParallelTxManager() *parallelTxManager {
@@ -566,13 +539,36 @@ func newParallelTxManager() *parallelTxManager {
 	}
 }
 
+func (f *parallelTxManager) newIsConflict(e *executeResult) bool {
+	if e.ms == nil {
+		return true //TODO fix later
+	}
+	conflict := false
+
+	e.ms.IteratorCache(false, func(key string, value []byte, isDirty bool, isDelete bool, storeKey types.StoreKey) bool {
+		if data, ok := f.cc.items[key]; ok {
+			if !bytes.Equal(data.value, value) {
+				conflict = true
+				return false
+			}
+		}
+		return true
+	}, nil)
+
+	return conflict
+}
+
 func (f *parallelTxManager) clear() {
 	f.workgroup.isReady = false
-
-	f.txReps = nil
-	f.extraTxsInfo = nil
 	f.workgroup.runningStatus = nil
 	f.workgroup.isrunning = nil
+	f.workgroup.indexInAll = 0
+	for key := range f.workgroup.markFailedStats {
+		delete(f.workgroup.markFailedStats, key)
+	}
+
+	f.extraTxsInfo = nil
+	f.txReps = nil
 
 	for key := range f.groupList {
 		delete(f.groupList, key)
@@ -584,24 +580,20 @@ func (f *parallelTxManager) clear() {
 		delete(f.preTxInGroup, key)
 	}
 
-	f.currIndex = -1
 	f.cc.clear()
-
-	for key := range f.workgroup.markFailedStats {
-		delete(f.workgroup.markFailedStats, key)
-	}
-	f.workgroup.indexInAll = 0
+	f.currIndex = -1
 }
 
 func (f *parallelTxManager) getTxResult(index int) sdk.CacheMultiStore {
-	preIndexInGroup, ok := f.preTxInGroup[index]
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	ms := f.cms.CacheMultiStore()
-	base := f.currIndex
-	if index <= base {
+
+	if index <= f.currIndex {
 		return nil
 	}
+
+	ms := f.cms.CacheMultiStore()
+	preIndexInGroup, ok := f.preTxInGroup[index]
 	if ok && preIndexInGroup > f.currIndex {
 		// get parent tx ms
 		if f.txReps[preIndexInGroup].paraMsg.AnteErr == nil {
@@ -643,6 +635,5 @@ func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
 	}, nil)
 	f.currIndex = txIndex
 	f.mu.Unlock()
-	f.cc.deleteFee()
-
+	f.cc.deleteFeeAccount()
 }
