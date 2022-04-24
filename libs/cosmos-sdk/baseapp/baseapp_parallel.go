@@ -200,6 +200,9 @@ func (app *BaseApp) runTxs() []*abci.ResponseDeliverTx {
 	deliverTxs := make([]*abci.ResponseDeliverTx, pm.txSize)
 
 	asyncCb := func(execRes *executeResult) {
+		if !pm.workgroup.isReady {
+			return
+		}
 		receiveTxIndex := int(execRes.counter)
 		pm.workgroup.setTxStatus(receiveTxIndex, false)
 
