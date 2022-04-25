@@ -2,7 +2,6 @@ package baseapp
 
 import (
 	"bytes"
-	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/okex/exchain/libs/cosmos-sdk/store/types"
@@ -171,13 +170,7 @@ func (app *BaseApp) fixFeeCollector() {
 		txFee = txFee.Sub(refundFee)
 		currTxFee = currTxFee.Add(txFee...)
 	}
-	ctx, _ := app.cacheTxContext(app.getContextForTx(runTxModeDeliver, []byte{}), []byte{})
-
-	ctx.SetMultiStore(pm.cms)
-	fmt.Println("Para----", currTxFee.String())
-	if err := app.updateFeeCollectorAccHandler(ctx, currTxFee); err != nil {
-		panic(err)
-	}
+	app.feeForCollector = currTxFee
 }
 
 // fixFeeCollector update fee account
