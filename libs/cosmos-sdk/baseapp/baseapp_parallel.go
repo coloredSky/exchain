@@ -159,18 +159,12 @@ func (app *BaseApp) ParallelTxs(txs [][]byte, onlyCalSender bool) []*abci.Respon
 }
 
 func (app *BaseApp) fixFeeCollector() {
-	pm := app.parallelTxManage
-	currTxFee := sdk.Coins{}
-	for index := 0; index < pm.txSize; index++ {
-		if pm.txReps[index].paraMsg.AnteErr != nil {
-			continue
-		}
-		txFee := pm.extraTxsInfo[index].fee
-		refundFee := pm.txReps[index].paraMsg.RefundFee
-		txFee = txFee.Sub(refundFee)
-		currTxFee = currTxFee.Add(txFee...)
+	ctx, _ := app.cacheTxContext(app.getContextForTx(runTxModeDeliver, []byte{}), []byte{})
+
+	ctx.SetMultiStore(app.parallelTxManage.cms)
+	if err := app.updateFeeCollectorAccHandler(ctx, app.parallelTxManage.currTxFee); err != nil {
+		panic(err)
 	}
-	app.feeForCollector = currTxFee
 }
 
 // fixFeeCollector update fee account
@@ -236,6 +230,9 @@ func (app *BaseApp) runTxs() []*abci.ResponseDeliverTx {
 				rerunIdx++
 
 				// conflict rerun tx
+				if pm.extraTxsInfo[txIndex].isEvm {
+					app.fixFeeCollector()
+				}
 				res = app.deliverTxWithCache(txIndex)
 				txReps[txIndex] = res
 
@@ -288,8 +285,9 @@ func (app *BaseApp) runTxs() []*abci.ResponseDeliverTx {
 
 	//waiting for call back
 	<-signal
-	app.fixFeeCollector()
+
 	// fix logs
+	app.feeForCollector = app.parallelTxManage.currTxFee
 	receiptsLogs := app.endParallelTxs()
 	for index, v := range receiptsLogs {
 		if len(v) != 0 { // only update evm tx result
@@ -517,6 +515,7 @@ type parallelTxManager struct {
 	txSize    int
 	cc        *conflictCheck
 	currIndex int
+	currTxFee sdk.Coins
 }
 
 func newParallelTxManager() *parallelTxManager {
@@ -531,6 +530,7 @@ func newParallelTxManager() *parallelTxManager {
 
 		cc:        newConflictCheck(),
 		currIndex: -1,
+		currTxFee: sdk.Coins{},
 	}
 }
 
@@ -577,6 +577,7 @@ func (f *parallelTxManager) clear() {
 
 	f.cc.clear()
 	f.currIndex = -1
+	f.currTxFee = sdk.Coins{}
 }
 
 func (f *parallelTxManager) getTxResult(index int) sdk.CacheMultiStore {
@@ -631,4 +632,9 @@ func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
 	f.currIndex = txIndex
 	f.mu.Unlock()
 	f.cc.deleteFeeAccount()
+
+	if res.paraMsg.AnteErr != nil {
+		return
+	}
+	f.currTxFee = f.currTxFee.Add(f.extraTxsInfo[txIndex].fee.Sub(f.txReps[txIndex].paraMsg.RefundFee)...)
 }
