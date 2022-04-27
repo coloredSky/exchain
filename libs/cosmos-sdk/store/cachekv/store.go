@@ -25,6 +25,8 @@ type cValue struct {
 	deleted bool
 }
 
+type PreAllChangeHandler func(keys []string, setOrDel []byte)
+
 // Store wraps an in-memory cache around an underlying types.KVStore.
 type Store struct {
 	mtx           sync.Mutex
@@ -33,6 +35,8 @@ type Store struct {
 	unsortedCache map[string]struct{}
 	sortedCache   *list.List // always ascending sorted
 	parent        types.KVStore
+
+	preAllChangeHandler PreAllChangeHandler
 }
 
 var _ types.CacheKVStore = (*Store)(nil)
@@ -45,6 +49,12 @@ func NewStore(parent types.KVStore) *Store {
 		sortedCache:   list.New(),
 		parent:        parent,
 	}
+}
+
+func NewStoreWithPreChangeHandler(parent types.KVStore, handler PreAllChangeHandler) *Store {
+	s := NewStore(parent)
+	s.preAllChangeHandler = handler
+	return s
 }
 
 // Implements Store.
@@ -148,6 +158,8 @@ func (store *Store) Write() {
 
 	sort.Strings(keys)
 
+	store.preWrite(keys)
+
 	// TODO: Consider allowing usage of Batch, which would allow the write to
 	// at least happen atomically.
 	for _, key := range keys {
@@ -164,6 +176,29 @@ func (store *Store) Write() {
 
 	// Clear the cache
 	store.clearCache()
+}
+
+func (store *Store) preWrite(keys []string) {
+	if store.preAllChangeHandler == nil || len(keys) < 4 {
+		return
+	}
+
+	setOrDel := make([]byte, 0, len(keys))
+
+	for _, key := range keys {
+		cacheValue := store.cache[key]
+		switch {
+		case cacheValue.deleted:
+			setOrDel = append(setOrDel, 0)
+		case cacheValue.value == nil:
+			// Skip, it already doesn't exist in parent.
+			setOrDel = append(setOrDel, 0xFF)
+		default:
+			setOrDel = append(setOrDel, 1)
+		}
+	}
+
+	store.preAllChangeHandler(keys, setOrDel)
 }
 
 // writeToCacheKv will write cached kv to the parent Store, then clear the cache.
