@@ -2,6 +2,7 @@ package baseapp
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/okex/exchain/libs/cosmos-sdk/store/types"
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
@@ -192,7 +193,9 @@ func (app *BaseApp) runTxs() []*abci.ResponseDeliverTx {
 	deliverTxs := make([]*abci.ResponseDeliverTx, pm.txSize)
 
 	asyncCb := func(execRes *executeResult) {
+		fmt.Println("receive", execRes.counter)
 		if !pm.workgroup.isReady {
+			fmt.Println("receive-1", execRes.counter)
 			return
 		}
 		receiveTxIndex := int(execRes.counter)
@@ -200,6 +203,7 @@ func (app *BaseApp) runTxs() []*abci.ResponseDeliverTx {
 
 		//skip old txIndex
 		if receiveTxIndex < txIndex {
+			fmt.Println("receive-2", execRes.counter)
 			return
 		}
 		txReps[receiveTxIndex] = execRes
@@ -220,6 +224,7 @@ func (app *BaseApp) runTxs() []*abci.ResponseDeliverTx {
 
 		// not excepted tx
 		if txIndex != receiveTxIndex {
+			fmt.Println("receive-3", execRes.counter)
 			return
 		}
 
@@ -255,6 +260,7 @@ func (app *BaseApp) runTxs() []*abci.ResponseDeliverTx {
 
 			// merge tx
 			pm.SetCurrentIndex(txIndex, res)
+			fmt.Println("setCurrentIndex", execRes.counter)
 
 			currentGas += uint64(res.resp.GasUsed)
 			txIndex++
@@ -643,7 +649,7 @@ func (f *parallelTxManager) SetCurrentIndex(txIndex int, res *executeResult) {
 		} else if value != nil {
 			f.cms.GetKVStore(storeKey).Set([]byte(key), value)
 		}
-		
+
 		return true
 	}, nil)
 	f.currIndex = txIndex
