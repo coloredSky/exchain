@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/viper"
 	"math/big"
 	"sync"
+	"time"
 )
 
 var itjs = jsoniter.ConfigCompatibleWithStandardLibrary
@@ -356,6 +357,7 @@ func (w *Watcher) Reset() {
 }
 
 func (w *Watcher) Commit() {
+	time.Sleep(time.Millisecond)
 	if !w.Enabled() {
 		return
 	}
