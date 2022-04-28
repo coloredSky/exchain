@@ -357,7 +357,7 @@ func (w *Watcher) Reset() {
 }
 
 func (w *Watcher) Commit() {
-	time.Sleep(10 * time.Microsecond)
+	time.Sleep(50 * time.Microsecond)
 	if !w.Enabled() {
 		return
 	}
