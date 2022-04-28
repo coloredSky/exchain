@@ -405,7 +405,7 @@ func newAsyncWorkGroup() *asyncWorkGroup {
 		taskCh:  make(chan int, maxTxNumberInParallelChan),
 		taskRun: nil,
 
-		stopChan: make(chan struct{}, maxNums+1),
+		stopChan: make(chan struct{}),
 	}
 }
 
