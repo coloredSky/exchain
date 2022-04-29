@@ -389,6 +389,12 @@ func (conR *Reactor) Receive(chID byte, src p2p.Peer, msgBytes []byte) {
 			cs.mtx.RLock()
 			height, valSize, lastCommitSize := cs.Height, cs.Validators.Size(), cs.LastCommit.Size()
 			cs.mtx.RUnlock()
+			if msg.Vote.Type == types.PrecommitType {
+				fmt.Printf("Vote Received by reactor, vote height:%d, csHeight, signature:%X\n",
+					msg.Vote.Height, cs.Height, tmbytes.Fingerprint(msg.Vote.Signature))
+				fmt.Println("--Vote time:", msg.Vote.Timestamp)
+				fmt.Println("--Receive time:", time.Now())
+			}
 			ps.EnsureVoteBitArrays(height, valSize)
 			ps.EnsureVoteBitArrays(height-1, lastCommitSize)
 			ps.SetHasVote(msg.Vote)
@@ -540,7 +546,29 @@ func (conR *Reactor) broadcastSignVoteMessage(vote *types.Vote) {
 		fmt.Println("--Vote time:", vote.Timestamp)
 		fmt.Println("--Broadcast vote time:", time.Now())
 	}
-	conR.Switch.Broadcast(VoteChannel, cdc.MustMarshalBinaryBare(msg))
+	//conR.Switch.Broadcast(VoteChannel, cdc.MustMarshalBinaryBare(msg))
+
+	bytes := cdc.MustMarshalBinaryBare(msg)
+	peers := conR.Switch.Peers().List()
+	var wg sync.WaitGroup
+	wg.Add(len(peers))
+	successChan := make(chan bool, len(peers))
+
+	for _, peer := range peers {
+		go func(p p2p.Peer) {
+			defer wg.Done()
+			success := p.Send(VoteChannel, bytes)
+			successChan <- success
+		}(peer)
+	}
+
+	go func() {
+		wg.Wait()
+		fmt.Println("Finished broadcast work really, send to peers:", len(peers), time.Now())
+		close(successChan)
+	}()
+
+	fmt.Println("Finished broadcast function", time.Now())
 }
 func makeRoundStepMessage(rs *cstypes.RoundState) (nrsMsg *NewRoundStepMessage) {
 	nrsMsg = &NewRoundStepMessage{

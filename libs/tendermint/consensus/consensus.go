@@ -1894,7 +1894,8 @@ func (cs *State) addVote(
 	if vote.Height != cs.Height {
 		err = ErrVoteHeightMismatch
 		cs.Logger.Info("Vote ignored and not added", "voteHeight", vote.Height, "csHeight", cs.Height, "peerID", peerID)
-		fmt.Println("Vote ignored and not added, height:%d, signature:%X\n", vote.Height, tmbytes.Fingerprint(vote.Signature))
+		fmt.Printf("Vote ignored and not added, vote height:%d, csHeight, signature:%X\n",
+			vote.Height, cs.Height, tmbytes.Fingerprint(vote.Signature))
 		fmt.Println("--Vote time:", vote.Timestamp)
 		fmt.Println("--Receive and Drop vote time:", time.Now())
 		return
@@ -1991,7 +1992,7 @@ func (cs *State) addVote(
 		fmt.Println("--ReceiveTime:", time.Now())
 		blockID, ok := precommits.TwoThirdsMajority()
 		if ok {
-			fmt.Println("--2/3M Precommit:", time.Now())
+			fmt.Println("Meet 2/3M Precommit:", time.Now())
 			// Executed as TwoThirdsMajority could be from a higher round
 			cs.enterNewRound(height, vote.Round)
 			cs.enterPrecommit(height, vote.Round)
