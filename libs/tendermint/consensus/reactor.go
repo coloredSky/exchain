@@ -1168,12 +1168,17 @@ func (ps *PeerState) PickSendVote(votes types.VoteSetReader) bool {
 	if vote, ok := ps.PickVoteToSend(votes); ok {
 		msg := &VoteMessage{vote}
 		ps.logger.Debug("Sending vote message", "ps", ps, "vote", vote)
+
 		if vote.Type == types.PrecommitType {
 			fmt.Printf("PickSendVote by routine, height:%d, signature:%X\n", vote.Height, tmbytes.Fingerprint(vote.Signature))
+			fmt.Println("--Send to:", ps.peer.ID())
 			fmt.Println("--Vote time:", vote.Timestamp)
 			fmt.Println("--Send vote time:", time.Now())
 		}
 		if ps.peer.Send(VoteChannel, cdc.MustMarshalBinaryBare(msg)) {
+			if vote.Type == types.PrecommitType {
+				fmt.Printf("--Send success", time.Now())
+			}
 			ps.SetHasVote(vote)
 			return true
 		}
