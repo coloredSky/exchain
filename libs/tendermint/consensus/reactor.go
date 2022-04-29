@@ -392,6 +392,7 @@ func (conR *Reactor) Receive(chID byte, src p2p.Peer, msgBytes []byte) {
 			if msg.Vote.Type == types.PrecommitType {
 				fmt.Printf("Vote Received by reactor, vote height:%d, csHeight:%d, signature:%X\n",
 					msg.Vote.Height, cs.Height, tmbytes.Fingerprint(msg.Vote.Signature))
+				fmt.Println("--From peer:", src.ID())
 				fmt.Println("--Vote time:", msg.Vote.Timestamp)
 				fmt.Println("--Receive time:", time.Now())
 			}
@@ -542,7 +543,7 @@ func (conR *Reactor) broadcastHasVoteMessage(vote *types.Vote) {
 func (conR *Reactor) broadcastSignVoteMessage(vote *types.Vote) {
 	msg := &VoteMessage{vote}
 	if vote.Type == types.PrecommitType {
-		fmt.Printf("broadcastSignVoteMessage, height:%n, signature:%X\n", vote.Height, tmbytes.Fingerprint(vote.Signature))
+		fmt.Printf("broadcastSignVoteMessage, height:%d, signature:%X\n", vote.Height, tmbytes.Fingerprint(vote.Signature))
 		fmt.Println("--Vote time:", vote.Timestamp)
 		fmt.Println("--Broadcast vote time:", time.Now())
 	}
