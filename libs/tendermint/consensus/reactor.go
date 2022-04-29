@@ -1140,7 +1140,7 @@ func (ps *PeerState) PickSendVote(votes types.VoteSetReader) bool {
 		msg := &VoteMessage{vote}
 		ps.logger.Debug("Sending vote message", "ps", ps, "vote", vote)
 		if vote.Type == types.PrecommitType {
-			fmt.Printf("PickSendVote by routine, height:%n, signature:%X\n", vote.Height, tmbytes.Fingerprint(vote.Signature))
+			fmt.Printf("PickSendVote by routine, height:%d, signature:%X\n", vote.Height, tmbytes.Fingerprint(vote.Signature))
 			fmt.Println("--Vote time:", vote.Timestamp)
 			fmt.Println("--Send vote time:", time.Now())
 		}

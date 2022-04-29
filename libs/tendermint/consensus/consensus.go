@@ -1894,6 +1894,9 @@ func (cs *State) addVote(
 	if vote.Height != cs.Height {
 		err = ErrVoteHeightMismatch
 		cs.Logger.Info("Vote ignored and not added", "voteHeight", vote.Height, "csHeight", cs.Height, "peerID", peerID)
+		fmt.Println("Vote ignored and not added, height:%d, signature:%X\n", "voteHeight", vote.Height)
+		fmt.Println("--Vote time:", vote.Timestamp)
+		fmt.Println("--Receive and Drop vote time:", time.Now())
 		return
 	}
 
@@ -1983,7 +1986,7 @@ func (cs *State) addVote(
 		precommits := cs.Votes.Precommits(vote.Round)
 		cs.Logger.Info("Added to precommit", "vote", vote, "precommits", precommits.StringShort())
 
-		fmt.Printf("Add precommit vote, height:%d, signature:%X\n:", vote.Height, tmbytes.Fingerprint(vote.Signature))
+		fmt.Printf("Add precommit vote, height:%d, signature:%X\n", vote.Height, tmbytes.Fingerprint(vote.Signature))
 		fmt.Println("--VoteTime:", vote.Timestamp)
 		fmt.Println("--ReceiveTime:", time.Now())
 		blockID, ok := precommits.TwoThirdsMajority()
@@ -2082,7 +2085,7 @@ func (cs *State) signAddVote(msgType types.SignedMsgType, hash []byte, header ty
 	vote, err := cs.signVote(msgType, hash, header)
 	if err == nil {
 		if vote.Type == types.PrecommitType {
-			fmt.Printf("signVote, height:%n, signature:%X\n", vote.Height, tmbytes.Fingerprint(vote.Signature))
+			fmt.Printf("signVote, height:%d, signature:%X\n", vote.Height, tmbytes.Fingerprint(vote.Signature))
 			fmt.Println("--Vote time:", vote.Timestamp)
 			fmt.Println("--Sign vote time:", time.Now())
 		}
