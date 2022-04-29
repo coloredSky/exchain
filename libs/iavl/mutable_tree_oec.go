@@ -200,6 +200,7 @@ func (tree *MutableTree) StopTree() {
 			panic(err)
 		}
 	} else {
+		fmt.Printf("---- giskook ------------%v \n", tree.root)
 		if err := tree.ndb.SaveRoot(batch, tree.root, tree.version); err != nil {
 			panic(err)
 		}
