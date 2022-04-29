@@ -1894,7 +1894,7 @@ func (cs *State) addVote(
 	if vote.Height != cs.Height {
 		err = ErrVoteHeightMismatch
 		cs.Logger.Info("Vote ignored and not added", "voteHeight", vote.Height, "csHeight", cs.Height, "peerID", peerID)
-		fmt.Println("Vote ignored and not added, height:%d, signature:%X\n", "voteHeight", vote.Height)
+		fmt.Println("Vote ignored and not added, height:%d, signature:%X\n", vote.Height, tmbytes.Fingerprint(vote.Signature))
 		fmt.Println("--Vote time:", vote.Timestamp)
 		fmt.Println("--Receive and Drop vote time:", time.Now())
 		return
