@@ -390,7 +390,7 @@ func (conR *Reactor) Receive(chID byte, src p2p.Peer, msgBytes []byte) {
 			height, valSize, lastCommitSize := cs.Height, cs.Validators.Size(), cs.LastCommit.Size()
 			cs.mtx.RUnlock()
 			if msg.Vote.Type == types.PrecommitType {
-				fmt.Printf("Vote Received by reactor, vote height:%d, csHeight, signature:%X\n",
+				fmt.Printf("Vote Received by reactor, vote height:%d, csHeight:%d, signature:%X\n",
 					msg.Vote.Height, cs.Height, tmbytes.Fingerprint(msg.Vote.Signature))
 				fmt.Println("--Vote time:", msg.Vote.Timestamp)
 				fmt.Println("--Receive time:", time.Now())
