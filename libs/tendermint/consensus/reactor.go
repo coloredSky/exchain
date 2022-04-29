@@ -1177,7 +1177,7 @@ func (ps *PeerState) PickSendVote(votes types.VoteSetReader) bool {
 		}
 		if ps.peer.Send(VoteChannel, cdc.MustMarshalBinaryBare(msg)) {
 			if vote.Type == types.PrecommitType {
-				fmt.Printf("--Send success", time.Now())
+				fmt.Println("--Send success", time.Now())
 			}
 			ps.SetHasVote(vote)
 			return true
