@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/okex/exchain/libs/tendermint/libs/automation"
+	tmbytes "github.com/okex/exchain/libs/tendermint/libs/bytes"
 	"github.com/spf13/viper"
 	"reflect"
 	"runtime/debug"
@@ -1212,6 +1213,7 @@ func (cs *State) enterPrecommit(height int64, round int) {
 		return
 	}
 
+	fmt.Println("enterPrecommit", height, time.Now())
 	cs.trc.Pin("Precommit-%d", round)
 
 	logger.Info(fmt.Sprintf("enterPrecommit(%v/%v). Current: %v/%v/%v", height, round, cs.Height, cs.Round, cs.Step))
@@ -1351,7 +1353,7 @@ func (cs *State) enterCommit(height int64, commitRound int) {
 		return
 	}
 	cs.trc.Pin("%s-%d-%d", "Commit", cs.Round, commitRound)
-
+	fmt.Println("enterCommit", height, time.Now())
 	logger.Info(fmt.Sprintf("enterCommit(%v/%v). Current: %v/%v/%v", height, commitRound, cs.Height, cs.Round, cs.Step))
 
 	defer func() {
@@ -1981,8 +1983,12 @@ func (cs *State) addVote(
 		precommits := cs.Votes.Precommits(vote.Round)
 		cs.Logger.Info("Added to precommit", "vote", vote, "precommits", precommits.StringShort())
 
+		fmt.Printf("Add precommit vote, height:%d, signature:%X\n:", vote.Height, tmbytes.Fingerprint(vote.Signature))
+		fmt.Println("--VoteTime:", vote.Timestamp)
+		fmt.Println("--ReceiveTime:", time.Now())
 		blockID, ok := precommits.TwoThirdsMajority()
 		if ok {
+			fmt.Println("--2/3M Precommit:", time.Now())
 			// Executed as TwoThirdsMajority could be from a higher round
 			cs.enterNewRound(height, vote.Round)
 			cs.enterPrecommit(height, vote.Round)
@@ -2075,6 +2081,11 @@ func (cs *State) signAddVote(msgType types.SignedMsgType, hash []byte, header ty
 	// TODO: pass pubKey to signVote
 	vote, err := cs.signVote(msgType, hash, header)
 	if err == nil {
+		if vote.Type == types.PrecommitType {
+			fmt.Printf("signVote, height:%n, signature:%X\n", vote.Height, tmbytes.Fingerprint(vote.Signature))
+			fmt.Println("--Vote time:", vote.Timestamp)
+			fmt.Println("--Sign vote time:", time.Now())
+		}
 		//broadcast vote immediately
 		cs.evsw.FireEvent(types.EventSignVote, vote)
 		cs.sendInternalMessage(msgInfo{&VoteMessage{vote}, ""})

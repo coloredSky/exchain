@@ -3,6 +3,7 @@ package consensus
 import (
 	"fmt"
 	"github.com/okex/exchain/libs/tendermint/libs/automation"
+	tmbytes "github.com/okex/exchain/libs/tendermint/libs/bytes"
 	"reflect"
 	"sync"
 	"time"
@@ -534,6 +535,11 @@ func (conR *Reactor) broadcastHasVoteMessage(vote *types.Vote) {
 }
 func (conR *Reactor) broadcastSignVoteMessage(vote *types.Vote) {
 	msg := &VoteMessage{vote}
+	if vote.Type == types.PrecommitType {
+		fmt.Printf("broadcastSignVoteMessage, height:%n, signature:%X\n", vote.Height, tmbytes.Fingerprint(vote.Signature))
+		fmt.Println("--Vote time:", vote.Timestamp)
+		fmt.Println("--Broadcast vote time:", time.Now())
+	}
 	conR.Switch.Broadcast(VoteChannel, cdc.MustMarshalBinaryBare(msg))
 }
 func makeRoundStepMessage(rs *cstypes.RoundState) (nrsMsg *NewRoundStepMessage) {
@@ -1133,6 +1139,11 @@ func (ps *PeerState) PickSendVote(votes types.VoteSetReader) bool {
 	if vote, ok := ps.PickVoteToSend(votes); ok {
 		msg := &VoteMessage{vote}
 		ps.logger.Debug("Sending vote message", "ps", ps, "vote", vote)
+		if vote.Type == types.PrecommitType {
+			fmt.Printf("PickSendVote by routine, height:%n, signature:%X\n", vote.Height, tmbytes.Fingerprint(vote.Signature))
+			fmt.Println("--Vote time:", vote.Timestamp)
+			fmt.Println("--Send vote time:", time.Now())
+		}
 		if ps.peer.Send(VoteChannel, cdc.MustMarshalBinaryBare(msg)) {
 			ps.SetHasVote(vote)
 			return true
