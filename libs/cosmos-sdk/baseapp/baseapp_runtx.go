@@ -2,6 +2,7 @@ package baseapp
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	"runtime/debug"
 
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
@@ -24,6 +25,16 @@ type runTxInfo struct {
 	result  *sdk.Result
 	txBytes []byte
 	tx      sdk.Tx
+
+	txIndex int
+}
+
+func (app *BaseApp) runTxWithIndex(txIndex int, mode runTxMode,
+	txBytes []byte, tx sdk.Tx, height int64, from ...string) (info *runTxInfo, err error) {
+
+	info = &runTxInfo{txIndex: txIndex}
+	err = app.runtxWithInfo(info, mode, txBytes, tx, height, from...)
+	return
 }
 
 func (app *BaseApp) runTx(mode runTxMode,
@@ -40,6 +51,12 @@ func (app *BaseApp) runtxWithInfo(info *runTxInfo, mode runTxMode, txBytes []byt
 	info.txBytes = txBytes
 	handler := info.handler
 	app.pin(ValTxMsgs, true, mode)
+
+	if tx.GetType() != sdk.EvmTxType && mode == runTxModeDeliver {
+		// should update the balance of FeeCollector's account when run non-evm tx
+		// which uses non-infiniteGasMeter during AnteHandleChain
+		app.updateFeeCollectorAccount()
+	}
 
 	//init info context
 	err = handler.handleStartHeight(info, height)
@@ -66,16 +83,27 @@ func (app *BaseApp) runtxWithInfo(info *runTxInfo, mode runTxMode, txBytes []byt
 		return err
 	}
 
+	// There is no need to update BlockGasMeter.GasConsumed and info.gInfo using ctx.GasMeter
+	// as gas is not consumed actually when ante failed.
+	isAnteSucceed := false
 	defer func() {
 		if r := recover(); r != nil {
 			err = app.runTx_defer_recover(r, info)
 			info.msCache = nil //TODO msCache not write
 			info.result = nil
 		}
-		info.gInfo = sdk.GasInfo{GasWanted: info.gasWanted, GasUsed: info.ctx.GasMeter().GasConsumed()}
+		gasUsed := info.ctx.GasMeter().GasConsumed()
+		if !isAnteSucceed {
+			gasUsed = 0
+		}
+		info.gInfo = sdk.GasInfo{GasWanted: info.gasWanted, GasUsed: gasUsed}
 	}()
 
-	defer handler.handleDeferGasConsumed(info)
+	defer func() {
+		if isAnteSucceed {
+			handler.handleDeferGasConsumed(info)
+		}
+	}()
 
 	defer func() {
 		app.pin(Refund, true, mode)
@@ -97,6 +125,12 @@ func (app *BaseApp) runtxWithInfo(info *runTxInfo, mode runTxMode, txBytes []byt
 	}
 	app.pin(RunAnte, false, mode)
 
+	if app.getTxFeeAndFromHandler != nil && mode == runTxModeDeliver {
+		fee, _, _, _, _ := app.getTxFeeAndFromHandler(info.ctx, tx)
+		app.UpdateFeeForCollector(fee, true)
+	}
+
+	isAnteSucceed = true
 	app.pin(RunMsg, true, mode)
 	err = handler.handleRunMsg(info)
 	app.pin(RunMsg, false, mode)
@@ -118,6 +152,16 @@ func (app *BaseApp) runAnte(info *runTxInfo, mode runTxMode) error {
 	// 1. CacheTxContext
 	app.pin(CacheTxContext, true, mode)
 	anteCtx, info.msCacheAnte = app.cacheTxContext(info.ctx, info.txBytes)
+
+	if mode == runTxModeDeliverInAsync {
+		info.msCacheAnte = nil
+		msCacheAnte := app.parallelTxManage.getTxResult(info.txIndex)
+		if msCacheAnte == nil {
+			return errors.New("Need Skip:txIndex smaller than currentIndex")
+		}
+		info.msCacheAnte = msCacheAnte
+		anteCtx.SetMultiStore(info.msCacheAnte)
+	}
 	anteCtx.SetEventManager(sdk.NewEventManager())
 	app.pin(CacheTxContext, false, mode)
 
@@ -150,7 +194,7 @@ func (app *BaseApp) runAnte(info *runTxInfo, mode runTxMode) error {
 	info.gasWanted = info.ctx.GasMeter().Limit()
 
 	if mode == runTxModeDeliverInAsync {
-		app.parallelTxManage.txStatus[string(info.txBytes)].anteErr = err
+		info.ctx.ParaMsg().AnteErr = err
 	}
 
 	if err != nil {
@@ -197,6 +241,54 @@ func (app *BaseApp) DeliverTx(req abci.RequestDeliverTx) abci.ResponseDeliverTx 
 	}
 }
 
+func (app *BaseApp) PreDeliverRealTx(tx []byte) abci.TxEssentials {
+	var realTx sdk.Tx
+	var err error
+	if mem := GetGlobalMempool(); mem != nil {
+		realTx, _ = mem.ReapEssentialTx(tx).(sdk.Tx)
+	}
+	if realTx == nil {
+		realTx, err = app.txDecoder(tx)
+		if err != nil || realTx == nil {
+			return nil
+		}
+		app.blockDataCache.SetTx(tx, realTx)
+	}
+
+	if realTx.GetType() == sdk.EvmTxType && app.preDeliverTxHandler != nil {
+		ctx := app.deliverState.ctx
+		ctx.SetCache(app.chainCache).
+			SetMultiStore(app.cms).
+			SetGasMeter(sdk.NewInfiniteGasMeter())
+
+		app.preDeliverTxHandler(ctx, realTx, !app.chainCache.IsEnabled())
+	}
+
+	return realTx
+}
+
+func (app *BaseApp) DeliverRealTx(txes abci.TxEssentials) abci.ResponseDeliverTx {
+	var err error
+	realTx, _ := txes.(sdk.Tx)
+	if realTx == nil {
+		realTx, err = app.txDecoder(txes.GetRaw())
+		if err != nil {
+			return sdkerrors.ResponseDeliverTx(err, 0, 0, app.trace)
+		}
+	}
+	info, err := app.runTx(runTxModeDeliver, realTx.GetRaw(), realTx, LatestSimulateTxHeight)
+	if err != nil {
+		return sdkerrors.ResponseDeliverTx(err, info.gInfo.GasWanted, info.gInfo.GasUsed, app.trace)
+	}
+	return abci.ResponseDeliverTx{
+		GasWanted: int64(info.gInfo.GasWanted), // TODO: Should type accept unsigned ints?
+		GasUsed:   int64(info.gInfo.GasUsed),   // TODO: Should type accept unsigned ints?
+		Log:       info.result.Log,
+		Data:      info.result.Data,
+		Events:    info.result.Events.ToABCIEvents(),
+	}
+}
+
 // runTx processes a transaction within a given execution mode, encoded transaction
 // bytes, and the decoded transaction itself. All state transitions occur through
 // a cached Context depending on the mode provided. State only gets persisted
@@ -227,26 +319,30 @@ func (app *BaseApp) runTx_defer_recover(r interface{}, info *runTxInfo) error {
 	return err
 }
 
-func (app *BaseApp) asyncDeliverTx(txWithIndex []byte) {
-
-	txStatus := app.parallelTxManage.txStatus[string(txWithIndex)]
-	tx, err := app.txDecoder(getRealTxByte(txWithIndex))
-	if err != nil {
-		asyncExe := newExecuteResult(sdkerrors.ResponseDeliverTx(err, 0, 0, app.trace), nil, txStatus.indexInBlock, txStatus.evmIndex)
-		app.parallelTxManage.workgroup.Push(asyncExe)
+func (app *BaseApp) asyncDeliverTx(txIndex int) {
+	pmWorkGroup := app.parallelTxManage.workgroup
+	if !pmWorkGroup.isReady {
 		return
 	}
 
-	if !txStatus.isEvmTx {
-		asyncExe := newExecuteResult(abci.ResponseDeliverTx{}, nil, txStatus.indexInBlock, txStatus.evmIndex)
-		app.parallelTxManage.workgroup.Push(asyncExe)
+	txStatus := app.parallelTxManage.extraTxsInfo[txIndex]
+
+	if txStatus.stdTx == nil {
+		asyncExe := newExecuteResult(sdkerrors.ResponseDeliverTx(txStatus.decodeErr, 0, 0, app.trace), nil, uint32(txIndex), nil)
+		pmWorkGroup.Push(asyncExe)
+		return
+	}
+
+	if !txStatus.isEvm {
+		asyncExe := newExecuteResult(abci.ResponseDeliverTx{}, nil, uint32(txIndex), nil)
+		pmWorkGroup.Push(asyncExe)
 		return
 	}
 
 	var resp abci.ResponseDeliverTx
-	info, e := app.runTx(runTxModeDeliverInAsync, txWithIndex, tx, LatestSimulateTxHeight)
-	if e != nil {
-		resp = sdkerrors.ResponseDeliverTx(e, info.gInfo.GasWanted, info.gInfo.GasUsed, app.trace)
+	info, errM := app.runTxWithIndex(txIndex, runTxModeDeliverInAsync, pmWorkGroup.txs[txIndex], txStatus.stdTx, LatestSimulateTxHeight)
+	if errM != nil {
+		resp = sdkerrors.ResponseDeliverTx(errM, info.gInfo.GasWanted, info.gInfo.GasUsed, app.trace)
 	} else {
 		resp = abci.ResponseDeliverTx{
 			GasWanted: int64(info.gInfo.GasWanted), // TODO: Should type accept unsigned ints?
@@ -257,23 +353,22 @@ func (app *BaseApp) asyncDeliverTx(txWithIndex []byte) {
 		}
 	}
 
-	asyncExe := newExecuteResult(resp, info.msCacheAnte, txStatus.indexInBlock, txStatus.evmIndex)
-	asyncExe.err = e
-	app.parallelTxManage.workgroup.Push(asyncExe)
+	asyncExe := newExecuteResult(resp, info.msCacheAnte, uint32(txIndex), info.ctx.ParaMsg())
+	pmWorkGroup.Push(asyncExe)
 }
 
 func useCache(mode runTxMode) bool {
 	if !sdk.UseCache {
 		return false
 	}
-	if mode == runTxModeDeliver {
+	if mode == runTxModeDeliver || mode == runTxModeDeliverPartConcurrent {
 		return true
 	}
 	return false
 }
 
 func (app *BaseApp) newBlockCache() {
-	app.blockCache = sdk.NewCache(app.chainCache, useCache(runTxModeDeliver))
+	app.blockCache = sdk.NewCache(app.chainCache, sdk.UseCache && !app.parallelTxManage.isAsyncDeliverTx)
 	app.deliverState.ctx.SetCache(app.blockCache)
 }
 

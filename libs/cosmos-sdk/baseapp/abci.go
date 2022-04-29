@@ -113,6 +113,7 @@ func (app *BaseApp) FilterPeerByID(info string) abci.ResponseQuery {
 
 // BeginBlock implements the ABCI application interface.
 func (app *BaseApp) BeginBlock(req abci.RequestBeginBlock) (res abci.ResponseBeginBlock) {
+	app.blockDataCache.Clear()
 	if app.cms.TracingEnabled() {
 		app.cms.SetTracingContext(sdk.TraceContext(
 			map[string]interface{}{"blockHeight": req.Header.Height},
@@ -161,11 +162,47 @@ func (app *BaseApp) BeginBlock(req abci.RequestBeginBlock) (res abci.ResponseBeg
 
 	app.anteTracer = trace.NewTracer(trace.AnteChainDetail)
 
+	app.feeForCollector = sdk.Coins{}
+	app.feeChanged = false
+
 	return res
+}
+
+func (app *BaseApp) UpdateFeeForCollector(fee sdk.Coins, add bool) {
+	if fee.IsZero() {
+		return
+	}
+	app.feeChanged = true
+	if add {
+		app.feeForCollector = app.feeForCollector.Add(fee...)
+	} else {
+		app.feeForCollector = app.feeForCollector.Sub(fee)
+	}
+}
+
+func (app *BaseApp) updateFeeCollectorAccount() {
+	if app.updateFeeCollectorAccHandler == nil || !app.feeChanged {
+		return
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic: %v", r)
+			app.logger.Error("update fee collector account failed", "err", err)
+		}
+	}()
+
+	ctx, cache := app.cacheTxContext(app.getContextForTx(runTxModeDeliver, []byte{}), []byte{})
+	if err := app.updateFeeCollectorAccHandler(ctx, app.feeForCollector); err != nil {
+		panic(err)
+	}
+	cache.Write()
 }
 
 // EndBlock implements the ABCI interface.
 func (app *BaseApp) EndBlock(req abci.RequestEndBlock) (res abci.ResponseEndBlock) {
+	app.updateFeeCollectorAccount()
+
 	if app.deliverState.ms.TracingEnabled() {
 		app.deliverState.ms = app.deliverState.ms.SetTracingContext(nil).(sdk.CacheMultiStore)
 	}
@@ -222,6 +259,7 @@ func (app *BaseApp) addCommitTraceInfo() {
 // against that height and gracefully halt if it matches the latest committed
 // height.
 func (app *BaseApp) Commit(req abci.RequestCommit) abci.ResponseCommit {
+
 	header := app.deliverState.ctx.BlockHeader()
 
 	// Write the DeliverTx state which is cache-wrapped and commit the MultiStore.

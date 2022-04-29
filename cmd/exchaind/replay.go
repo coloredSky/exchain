@@ -70,7 +70,7 @@ func replayCmd(ctx *server.Context, registerAppFlagFn func(cmd *cobra.Command)) 
 
 			dataDir := viper.GetString(replayedBlockDir)
 			replayBlock(ctx, dataDir)
-			log.Println("--------- replay success ---------", time.Now().Sub(ts).Seconds())
+			log.Println("--------- replay success ---------", "Time Cost", time.Now().Sub(ts).Seconds())
 		},
 		PostRun: func(cmd *cobra.Command, args []string) {
 			if viper.GetBool(runWithPprofMemFlag) {
@@ -128,9 +128,6 @@ func replayBlock(ctx *server.Context, originDataDir string) {
 	}
 	// replay
 	doReplay(ctx, state, stateStoreDB, proxyApp, originDataDir, currentAppHash, currentBlockHeight)
-	if viper.GetBool(sm.FlagParalleledTx) {
-		baseapp.ParaLog.PrintLog()
-	}
 }
 
 func registerReplayFlags(cmd *cobra.Command) *cobra.Command {
@@ -268,8 +265,9 @@ func doReplay(ctx *server.Context, state sm.State, stateStoreDB dbm.DB,
 		block := originBlockStore.LoadBlock(lastBlockHeight)
 		meta := originBlockStore.LoadBlockMeta(lastBlockHeight)
 		blockExec := sm.NewBlockExecutor(stateStoreDB, ctx.Logger, mockApp, mock.Mempool{}, sm.MockEvidencePool{})
-		blockExec.SetIsAsyncDeliverTx(false) // mockApp not support parallel tx
+		config.GetOecConfig().SetDeliverTxsExecuteMode(0) // mockApp not support parallel tx
 		state, _, err = blockExec.ApplyBlock(state, meta.BlockID, block)
+		config.GetOecConfig().SetDeliverTxsExecuteMode(viper.GetInt(sm.FlagDeliverTxsExecMode))
 		panicError(err)
 	}
 
@@ -279,6 +277,8 @@ func doReplay(ctx *server.Context, state sm.State, stateStoreDB dbm.DB,
 		defer stopDumpPprof()
 	}
 
+	//Async save db during replay
+	blockExec.SetIsAsyncSaveDB(true)
 	baseapp.SetGlobalMempool(mock.Mempool{}, ctx.Config.Mempool.SortTxByGp, ctx.Config.Mempool.EnablePendingPool)
 	needSaveBlock := viper.GetBool(saveBlock)
 	global.SetGlobalHeight(lastBlockHeight + 1)
@@ -286,7 +286,6 @@ func doReplay(ctx *server.Context, state sm.State, stateStoreDB dbm.DB,
 		log.Println("replaying ", height)
 		block := originBlockStore.LoadBlock(height)
 		meta := originBlockStore.LoadBlockMeta(height)
-		blockExec.SetIsAsyncDeliverTx(viper.GetBool(sm.FlagParalleledTx))
 		state, _, err = blockExec.ApplyBlock(state, meta.BlockID, block)
 		panicError(err)
 		if needSaveBlock {

@@ -50,6 +50,23 @@ func (ak AccountKeeper) GetAccount(ctx sdk.Context, addr sdk.AccAddress) exporte
 	return acc
 }
 
+// LoadAccount load account from store without return, only used in pre deliver tx
+func (ak AccountKeeper) LoadAccount(ctx sdk.Context, addr sdk.AccAddress) {
+	if _, gas, ok := ctx.Cache().GetAccount(ethcmn.BytesToAddress(addr)); ok {
+		ctx.GasMeter().ConsumeGas(gas, "x/auth/keeper/account.go/GetAccount")
+		return
+	}
+
+	store := ctx.KVStore(ak.key)
+	bz := store.Get(types.AddressStoreKey(addr))
+	var acc exported.Account
+	if bz != nil {
+		acc = ak.decodeAccount(bz)
+	}
+	ctx.Cache().UpdateAccount(addr, acc, len(bz), false)
+	return
+}
+
 // GetAllAccounts returns all accounts in the accountKeeper.
 func (ak AccountKeeper) GetAllAccounts(ctx sdk.Context) (accounts []exported.Account) {
 	ak.IterateAccounts(ctx,
@@ -61,7 +78,7 @@ func (ak AccountKeeper) GetAllAccounts(ctx sdk.Context) (accounts []exported.Acc
 }
 
 // SetAccount implements sdk.AccountKeeper.
-func (ak AccountKeeper) SetAccount(ctx sdk.Context, acc exported.Account) {
+func (ak AccountKeeper) SetAccount(ctx sdk.Context, acc exported.Account, updateState ...bool) {
 	addr := acc.GetAddress()
 	store := ctx.KVStore(ak.key)
 	bz, err := ak.cdc.MarshalBinaryBareWithRegisteredMarshaller(acc)
@@ -78,7 +95,8 @@ func (ak AccountKeeper) SetAccount(ctx sdk.Context, acc exported.Account) {
 		if ak.observers != nil {
 			for _, observer := range ak.observers {
 				if observer != nil {
-					observer.OnAccountUpdated(acc)
+					updated := len(updateState) > 0 && updateState[0]
+					observer.OnAccountUpdated(acc, updated)
 				}
 			}
 		}
