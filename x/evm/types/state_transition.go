@@ -283,6 +283,11 @@ func (st StateTransition) TransitionDb(ctx sdk.Context, config ChainConfig) (exe
 			exeRes.TraceLogs = traceLogs
 		}
 	}()
+	defer func() {
+		itp := evm.Interpreter()
+		vm.EVMInterpreterPool.Put(itp)
+		vm.EvmPool.Put(evm)
+	}()
 	if err != nil {
 		if !st.Simulate {
 			st.Csdb.RevertToSnapshot(preSSId)
