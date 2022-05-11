@@ -695,6 +695,7 @@ func (cs *State) receiveRoutine(maxSteps int) {
 		case <-cs.txNotifier.TxsAvailable():
 			cs.handleTxsAvailable()
 		case mi = <-cs.peerMsgQueue:
+			fmt.Println("Writ to wal", mi.Msg)
 			cs.wal.Write(mi)
 			// handles proposals, block parts, votes
 			// may generate internal events (votes, complete proposals, 2/3 majorities)
