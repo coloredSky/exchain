@@ -696,6 +696,23 @@ func (cs *State) receiveRoutine(maxSteps int) {
 			cs.handleTxsAvailable()
 		case mi = <-cs.peerMsgQueue:
 			fmt.Println("Writ to wal", mi.Msg)
+			var msgType string
+			switch mi.Msg.(type) {
+			case *ViewChangeMessage:
+				msgType = "ViewChangeMessage"
+			case *ProposalMessage:
+				msgType = "ProposalMessage"
+			case *BlockPartMessage:
+				msgType = "BlockPartMessage"
+			case *VoteMessage:
+				msgType = "VoteMessage"
+			default:
+				msgType = "Unknown"
+				return
+			}
+
+			fmt.Println("msgType:", msgType)
+			fmt.Println("Writ to wal", mi.Msg)
 			cs.wal.Write(mi)
 			// handles proposals, block parts, votes
 			// may generate internal events (votes, complete proposals, 2/3 majorities)
