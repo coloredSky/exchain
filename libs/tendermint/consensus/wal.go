@@ -293,7 +293,25 @@ func (wal *BaseWAL) SearchForEndHeight(
 					wal.Logger.Info("Found", "height", height, "index", index)
 					return gr, true, nil
 				}
+			} else {
+				var msgType string
+				switch msg.Msg.(type) {
+				case *ViewChangeMessage:
+					msgType = "ViewChangeMessage"
+				case *ProposalMessage:
+					msgType = "ProposalMessage"
+				case *BlockPartMessage:
+					msgType = "BlockPartMessage"
+				case *VoteMessage:
+					msgType = "VoteMessage"
+				default:
+					msgType = "Unknown"
+					return
+				}
+
+				fmt.Println("Not found EndHeightMessage, but msgType:", msgType)
 			}
+
 		}
 		gr.Close()
 	}
