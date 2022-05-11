@@ -517,6 +517,7 @@ func (cs *State) scheduleRound0(rs *cstypes.RoundState) {
 		}
 	}
 
+	fmt.Println("Begin height", rs.Height)
 	cs.scheduleTimeout(sleepDuration, rs.Height, 0, cstypes.RoundStepNewHeight)
 }
 
@@ -1679,11 +1680,12 @@ func (cs *State) finalizeCommit(height int64) {
 	// successfully call ApplyBlock (ie. later here, or in Handshake after
 	// restart).
 	endMsg := EndHeightMessage{height}
+	fmt.Println("Before write EndHeightMessage", height)
 	if err := cs.wal.WriteSync(endMsg); err != nil { // NOTE: fsync
 		panic(fmt.Sprintf("Failed to write %v msg to consensus wal due to %v. Check your FS and restart the node",
 			endMsg, err))
 	}
-
+	fmt.Println("End write EndHeightMessage", height)
 	fail.Fail() // XXX
 
 	// Create a copy of the state for staging and an event cache for txs.
