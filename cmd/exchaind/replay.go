@@ -69,6 +69,7 @@ func replayCmd(ctx *server.Context, registerAppFlagFn func(cmd *cobra.Command)) 
 				}
 			}()
 
+			dataDir := viper.GetString(replayedBlockDir)
 			replayBlock(ctx, dataDir)
 			log.Println("--------- replay success ---------", "Time Cost", time.Now().Sub(ts).Seconds())
 		},
