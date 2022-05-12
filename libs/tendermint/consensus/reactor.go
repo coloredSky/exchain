@@ -866,6 +866,8 @@ OUTER_LOOP:
 			return
 		}
 
+		time.Sleep(conR.conS.config.PeerGossipSleepDuration * 2)
+
 		rs := conR.conS.GetRoundState()
 		prs := ps.GetRoundState()
 		vcMsg := conR.conS.vcMsg
@@ -891,7 +893,6 @@ OUTER_LOOP:
 			}
 		}
 
-		time.Sleep(conR.conS.config.PeerGossipSleepDuration * 2)
 		continue OUTER_LOOP
 	}
 }
