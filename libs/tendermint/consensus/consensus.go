@@ -326,6 +326,7 @@ func (cs *State) OnStart() error {
 	// so only OpenWAL if its still the nilWAL
 	if _, ok := cs.wal.(nilWAL); ok {
 		walFile := cs.config.WalFile()
+		fmt.Println("OpenWAL file", walFile)
 		wal, err := cs.OpenWAL(walFile)
 		if err != nil {
 			cs.Logger.Error("Error loading State wal", "err", err.Error())
@@ -696,30 +697,33 @@ func (cs *State) receiveRoutine(maxSteps int) {
 		case <-cs.txNotifier.TxsAvailable():
 			cs.handleTxsAvailable()
 		case mi = <-cs.peerMsgQueue:
-			fmt.Println("Writ to wal", mi.Msg)
-			var msgType string
-			switch mi.Msg.(type) {
-			case *ViewChangeMessage:
-				msgType = "ViewChangeMessage"
-			case *ProposalMessage:
-				msgType = "ProposalMessage"
-			case *BlockPartMessage:
-				msgType = "BlockPartMessage"
-			case *VoteMessage:
-				msgType = "VoteMessage"
-			default:
-				msgType = "Unknown"
-				return
-			}
+			//fmt.Println("Writ to wal", mi.Msg)
+			//var msgType string
+			//switch mi.Msg.(type) {
+			//case *ViewChangeMessage:
+			//	msgType = "ViewChangeMessage"
+			//case *ProposalMessage:
+			//	msgType = "ProposalMessage"
+			//case *BlockPartMessage:
+			//	msgType = "BlockPartMessage"
+			//case *VoteMessage:
+			//	msgType = "VoteMessage"
+			//default:
+			//	msgType = "Unknown"
+			//	return
+			//}
 
-			fmt.Println("msgType:", msgType)
-			fmt.Println("Writ to wal", mi.Msg)
+			//fmt.Println("msgType:", msgType)
+			//fmt.Println("peer queue Write to wal", mi.Msg)
 			cs.wal.Write(mi)
+			//fmt.Println("finish peer queue Write to wal", mi.Msg)
 			// handles proposals, block parts, votes
 			// may generate internal events (votes, complete proposals, 2/3 majorities)
 			cs.handleMsg(mi)
 		case mi = <-cs.internalMsgQueue:
+			//fmt.Println("internalMsgQueue Write to wal", mi.Msg)
 			err := cs.wal.WriteSync(mi) // NOTE: fsync
+			//fmt.Println("finish internalMsgQueue Write to wal", mi.Msg)
 			if err != nil {
 				panic(fmt.Sprintf("Failed to write %v msg to consensus wal due to %v. Check your FS and restart the node", mi, err))
 			}
@@ -735,7 +739,9 @@ func (cs *State) receiveRoutine(maxSteps int) {
 			// handles proposals, block parts, votes
 			cs.handleMsg(mi)
 		case ti := <-cs.timeoutTicker.Chan(): // tockChan:
+			//fmt.Println("timeoutTicker Write to wal", mi.Msg)
 			cs.wal.Write(ti)
+			//fmt.Println("finish timeoutTicker Write to wal", mi.Msg)
 			// if the timeout is relevant to the rs
 			// go to the next step
 			cs.handleTimeout(ti, rs)
@@ -1183,8 +1189,9 @@ func (cs *State) defaultDecideProposal(height int64, round int) {
 
 	// Flush the WAL. Otherwise, we may not recompute the same proposal to sign,
 	// and the privValidator will refuse to sign anything.
+	//fmt.Println("defaultDecideProposal write to wal")
 	cs.wal.FlushAndSync()
-
+	//fmt.Println("end DefaultDecideProposal write to wal")
 	// Make proposal
 	propBlockID := types.BlockID{Hash: block.Hash(), PartsHeader: blockParts.Header()}
 	proposal := types.NewProposal(height, round, cs.ValidRound, propBlockID)
@@ -1680,12 +1687,12 @@ func (cs *State) finalizeCommit(height int64) {
 	// successfully call ApplyBlock (ie. later here, or in Handshake after
 	// restart).
 	endMsg := EndHeightMessage{height}
-	fmt.Println("Before write EndHeightMessage", height)
+	//fmt.Println("Before write EndHeightMessage", height)
 	if err := cs.wal.WriteSync(endMsg); err != nil { // NOTE: fsync
 		panic(fmt.Sprintf("Failed to write %v msg to consensus wal due to %v. Check your FS and restart the node",
 			endMsg, err))
 	}
-	fmt.Println("End write EndHeightMessage", height)
+	//fmt.Println("End write EndHeightMessage", height)
 	fail.Fail() // XXX
 
 	// Create a copy of the state for staging and an event cache for txs.

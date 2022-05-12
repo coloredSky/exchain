@@ -173,6 +173,7 @@ func newByteBufferWAL(logger log.Logger, enc *WALEncoder, nBlocks int64, signalS
 // reached, in which case it will signal the caller via signalWhenStopsTo and
 // skip writing.
 func (w *byteBufferWAL) Write(m WALMessage) error {
+	fmt.Println("Write to byteBufferWAL", m)
 	if w.stopped {
 		w.logger.Debug("WAL already stopped. Not writing message", "msg", m)
 		return nil
