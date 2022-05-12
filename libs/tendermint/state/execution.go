@@ -193,6 +193,7 @@ func (blockExec *BlockExecutor) ApplyBlock(
 	trc := trace.NewTracer(trace.ApplyBlock)
 	dc := blockExec.deltaContext
 
+	fmt.Println("Begin enter ApplyBlock", time.Now())
 	defer func() {
 		trace.GetElapsedInfo().AddInfo(trace.Height, strconv.FormatInt(block.Height, 10))
 		trace.GetElapsedInfo().AddInfo(trace.Tx, strconv.Itoa(len(block.Data.Txs)))
@@ -205,6 +206,7 @@ func (blockExec *BlockExecutor) ApplyBlock(
 		blockExec.metrics.lastBlockTime = now
 	}()
 
+	fmt.Println("before ValidateBlock", time.Now())
 	if err := blockExec.ValidateBlock(state, block); err != nil {
 		return state, 0, ErrInvalidBlock(err)
 	}
@@ -215,10 +217,12 @@ func (blockExec *BlockExecutor) ApplyBlock(
 
 	startTime := time.Now().UnixNano()
 
+	fmt.Println("before tryWaitLastBlockSave", time.Now())
 	//wait till the last block async write be saved
 	blockExec.tryWaitLastBlockSave(block.Height - 1)
-
+	fmt.Println("before runAbci", time.Now())
 	abciResponses, err := blockExec.runAbci(block, deltaInfo)
+	fmt.Println("end runAbci", time.Now())
 
 	if err != nil {
 		return state, 0, ErrProxyAppConn(err)
@@ -291,7 +295,7 @@ func (blockExec *BlockExecutor) ApplyBlock(
 	}
 
 	dc.postApplyBlock(block.Height, deltaInfo, abciResponses, commitResp.DeltaMap, blockExec.isFastSync)
-
+	fmt.Println("End ApplyBlock", time.Now())
 	return state, retainHeight, nil
 }
 
