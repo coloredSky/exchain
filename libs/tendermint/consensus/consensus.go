@@ -1712,6 +1712,7 @@ func (cs *State) finalizeCommit(height int64) {
 
 	cs.trc.Pin("%s-%d", trace.RunTx, cs.Round)
 
+	fmt.Println("Before ApplyBlock", time.Now())
 	stateCopy, retainHeight, err = cs.blockExec.ApplyBlock(
 		stateCopy,
 		types.BlockID{Hash: block.Hash(), PartsHeader: blockParts.Header()},
@@ -1724,7 +1725,7 @@ func (cs *State) finalizeCommit(height int64) {
 		}
 		return
 	}
-
+	fmt.Println("End ApplyBlock", time.Now())
 	/*
 		if types.EnableBroadcastP2PDelta() {
 			// persists the given deltas to the underlying db.
@@ -1752,10 +1753,11 @@ func (cs *State) finalizeCommit(height int64) {
 	trace.GetElapsedInfo().AddInfo(trace.Round, fmt.Sprintf("%d", cs.Round))
 
 	// NewHeightStep!
+	fmt.Println("Before updateToState lock", time.Now())
 	cs.rsMtx.Lock()
 	cs.updateToState(stateCopy)
 	cs.rsMtx.Unlock()
-
+	fmt.Println("End updateToState lock", time.Now())
 	fail.Fail() // XXX
 
 	// Private validator might have changed it's key pair => refetch pubkey.
