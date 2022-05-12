@@ -1,7 +1,6 @@
 package types
 
 import (
-	"fmt"
 	"math/big"
 	"time"
 
@@ -9,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/tracers"
-	json "github.com/json-iterator/go"
 	sdk "github.com/okex/exchain/libs/cosmos-sdk/types"
 )
 
@@ -28,31 +26,32 @@ type TraceConfig struct {
 	DisableReturnData bool `json:"disableReturnData"`
 }
 
-func GetTracerResult(tracer vm.Tracer, result *core.ExecutionResult) ([]byte, error) {
-	var (
-		res []byte
-		err error
-	)
-	// Depending on the tracer type, format and return the output
-	switch tracer := tracer.(type) {
-	case *vm.StructLogger:
-		// If the result contains a revert reason, return it.
-		returnVal := fmt.Sprintf("%x", result.Return())
-		if len(result.Revert()) > 0 {
-			returnVal = fmt.Sprintf("%x", result.Revert())
-		}
-		res, err = json.ConfigFastest.Marshal(&TraceExecutionResult{
-			Gas:         result.UsedGas,
-			Failed:      result.Failed(),
-			ReturnValue: returnVal,
-			StructLogs:  FormatLogs(tracer.StructLogs()),
-		})
-	case *tracers.Tracer:
-		res, err = tracer.GetResult()
-	default:
-		res = []byte(fmt.Sprintf("bad tracer type %T", tracer))
-	}
-	return res, err
+func GetTracerResult(tracer vm.EVMLogger, result *core.ExecutionResult) ([]byte, error) {
+	panic("not fix yet")
+	//var (
+	//	res []byte
+	//	err error
+	//)
+	//// Depending on the tracer type, format and return the output
+	//switch tracer := tracer.(type) {
+	//case *logger.StructLogger:
+	//	// If the result contains a revert reason, return it.
+	//	returnVal := fmt.Sprintf("%x", result.Return())
+	//	if len(result.Revert()) > 0 {
+	//		returnVal = fmt.Sprintf("%x", result.Revert())
+	//	}
+	//	res, err = json.ConfigFastest.Marshal(&TraceExecutionResult{
+	//		Gas:         result.UsedGas,
+	//		Failed:      result.Failed(),
+	//		ReturnValue: returnVal,
+	//		StructLogs:  FormatLogs(tracer.StructLogs()),
+	//	})
+	//case *tracers.Tracer:
+	//	res, err = tracer.GetResult()
+	//default:
+	//	res = []byte(fmt.Sprintf("bad tracer type %T", tracer))
+	//}
+	//return res, err
 }
 
 // NoOpTracer is an empty implementation of vm.Tracer interface
@@ -90,7 +89,6 @@ func (dt NoOpTracer) CaptureExit(output []byte, gasUsed uint64, err error) {}
 
 // CaptureState implements vm.Tracer interface
 func (dt NoOpTracer) CaptureState(
-	env *vm.EVM,
 	pc uint64,
 	op vm.OpCode,
 	gas, cost uint64,
@@ -103,7 +101,6 @@ func (dt NoOpTracer) CaptureState(
 
 // CaptureFault implements vm.Tracer interface
 func (dt NoOpTracer) CaptureFault(
-	env *vm.EVM,
 	pc uint64,
 	op vm.OpCode,
 	gas, cost uint64,
@@ -140,41 +137,42 @@ func TestTracerConfig(traceConfig *TraceConfig) error {
 	}
 	return nil
 }
-func newTracer(ctx sdk.Context, txHash *common.Hash) (tracer vm.Tracer) {
-	if ctx.IsTraceTxLog() {
-		var err error
-		configBytes := ctx.TraceTxLogConfig()
-		traceConfig := &TraceConfig{}
-		if configBytes == nil {
-			traceConfig = defaultTracerConfig()
-		} else {
-			err = json.Unmarshal(configBytes, traceConfig)
-			if err != nil {
-				return NewNoOpTracer()
-			}
-		}
-		if traceConfig.Tracer == "" {
-			//Basic tracer with config
-			logConfig := vm.LogConfig{
-				DisableMemory:     traceConfig.DisableMemory,
-				DisableStorage:    traceConfig.DisableStorage,
-				DisableStack:      traceConfig.DisableStack,
-				DisableReturnData: traceConfig.DisableReturnData,
-				Debug:             traceConfig.Debug,
-			}
-			return vm.NewStructLogger(&logConfig)
-		}
-		// Json-based tracer
-		tCtx := &tracers.Context{
-			TxHash: *txHash,
-		}
-		tracer, err = tracers.New(traceConfig.Tracer, tCtx)
-		if err != nil {
-			return NewNoOpTracer()
-		}
-		return tracer
-	} else {
-		//no op tracer
-		return NewNoOpTracer()
-	}
+func newTracer(ctx sdk.Context, txHash *common.Hash) (tracer vm.EVMLogger) {
+	return NewNoOpTracer()
+	//if ctx.IsTraceTxLog() {
+	//	var err error
+	//	configBytes := ctx.TraceTxLogConfig()
+	//	traceConfig := &TraceConfig{}
+	//	if configBytes == nil {
+	//		traceConfig = defaultTracerConfig()
+	//	} else {
+	//		err = json.Unmarshal(configBytes, traceConfig)
+	//		if err != nil {
+	//			return NewNoOpTracer()
+	//		}
+	//	}
+	//	if traceConfig.Tracer == "" {
+	//		//Basic tracer with config
+	//		logConfig := vm.LogConfig{
+	//			DisableMemory:     traceConfig.DisableMemory,
+	//			DisableStorage:    traceConfig.DisableStorage,
+	//			DisableStack:      traceConfig.DisableStack,
+	//			DisableReturnData: traceConfig.DisableReturnData,
+	//			Debug:             traceConfig.Debug,
+	//		}
+	//		return vm.NewStructLogger(&logConfig)
+	//	}
+	//	// Json-based tracer
+	//	tCtx := &tracers.Context{
+	//		TxHash: *txHash,
+	//	}
+	//	tracer, err = tracers.New(traceConfig.Tracer, tCtx)
+	//	if err != nil {
+	//		return NewNoOpTracer()
+	//	}
+	//	return tracer
+	//} else {
+	//	//no op tracer
+	//	return NewNoOpTracer()
+	//}
 }

@@ -2,8 +2,7 @@ package types
 
 import (
 	"fmt"
-
-	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 )
 
 // TraceExecutionResult groups all structured logs emitted by the EVM
@@ -31,7 +30,7 @@ type StructLogRes struct {
 }
 
 // FormatLogs formats EVM returned structured logs for json output
-func FormatLogs(logs []vm.StructLog) []*StructLogRes {
+func FormatLogs(logs []logger.StructLog) []*StructLogRes {
 	formatted := make([]*StructLogRes, len(logs))
 	for index, trace := range logs {
 		formatted[index] = &StructLogRes{

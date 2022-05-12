@@ -226,7 +226,7 @@ func (k *Keeper) Commit(ctx sdk.Context) {
 		// The onleaf func is called _serially_, so we can reuse the same account
 		// for unmarshalling every time.
 		var storageRoot ethcmn.Hash
-		root, _ := k.rootTrie.Commit(func(_ [][]byte, _ []byte, leaf []byte, parent ethcmn.Hash) error {
+		root, _, _ := k.rootTrie.Commit(func(_ [][]byte, _ []byte, leaf []byte, parent ethcmn.Hash) error {
 			storageRoot.SetBytes(leaf)
 			if storageRoot != ethtypes.EmptyRootHash {
 				k.db.TrieDB().Reference(storageRoot, parent)

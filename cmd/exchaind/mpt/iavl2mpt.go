@@ -191,7 +191,7 @@ func migrateContractToMpt(migrationApp *app.OKExChainApp, cmCtx sdk.Context, evm
 			return false
 		})
 		// 1.3 calculate rootHash of contract mpt
-		rootHash, err := contractTrie.Commit(nil)
+		rootHash, _, err := contractTrie.Commit(nil)
 		panicError(err)
 		// 1.4 set the rootHash of contract mpt into evm mpt
 		panicError(evmTrie.TryUpdate(addr[:], rootHash.Bytes()))
