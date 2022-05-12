@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/okex/exchain/libs/system/trace"
+	"github.com/okex/exchain/libs/tendermint/types"
 	"math/big"
 	"strings"
 
@@ -320,7 +321,13 @@ func (st StateTransition) TransitionDb(ctx sdk.Context, config ChainConfig) (exe
 	}
 
 	if !st.Simulate {
-		csdb.IntermediateRoot(true)
+		if types.HigherThanMars(ctx.BlockHeight()) {
+			if ctx.IsDeliver() {
+				csdb.IntermediateRoot(true)
+			}
+		} else {
+			csdb.Commit(true)
+		}
 	}
 
 	// Encode all necessary data into slice of bytes to return in sdk result
