@@ -682,7 +682,10 @@ func (cs *State) receiveRoutine(maxSteps int) {
 			fmt.Println("End handle peerMsgQueue", time.Now())
 		case mi = <-cs.internalMsgQueue:
 			fmt.Println("Receive internalMsgQueue", time.Now())
+			t1 := time.Now()
 			err := cs.wal.WriteSync(mi) // NOTE: fsync
+			t2 := time.Now()
+			fmt.Println("-----wal.WriteSync cost:", t2.Sub(t1).Milliseconds())
 			if err != nil {
 				panic(fmt.Sprintf("Failed to write %v msg to consensus wal due to %v. Check your FS and restart the node", mi, err))
 			}
@@ -729,7 +732,9 @@ func (cs *State) handleMsg(mi msgInfo) {
 	case *BlockPartMessage:
 		// if the proposal is complete, we'll enterPrevote or tryFinalizeCommit
 		fmt.Println("handleMsg Get BlockPartMessage", msg.Height, msg.Part.Index, time.Now())
+		t1 := time.Now()
 		added, err = cs.addProposalBlockPart(msg, peerID)
+		t2 := time.Now()
 		if added {
 			fmt.Println("Added handleMsg Get BlockPartMessage", time.Now())
 			cs.statsMsgQueue <- mi
@@ -737,6 +742,7 @@ func (cs *State) handleMsg(mi msgInfo) {
 			fmt.Println("Dropped handleMsg Get BlockPartMessage", time.Now(), err)
 		}
 
+		fmt.Println("----addProposalBlockPart cost:", t2.Sub(t1).Milliseconds())
 		if err != nil && msg.Round != cs.Round {
 			cs.Logger.Debug(
 				"Received block part from wrong round",
@@ -1049,7 +1055,10 @@ func (cs *State) defaultDecideProposal(height int64, round int) {
 	propBlockID := types.BlockID{Hash: block.Hash(), PartsHeader: blockParts.Header()}
 	proposal := types.NewProposal(height, round, cs.ValidRound, propBlockID)
 	fmt.Println("Create proposl", height, round, time.Now())
+	t1 := time.Now()
 	if err := cs.privValidator.SignProposal(cs.state.ChainID, proposal); err == nil {
+		t2 := time.Now()
+		fmt.Println("----Sign cost:", t2.Sub(t1).Milliseconds())
 		fmt.Println("Sign proposl", height, time.Now())
 		// send proposal and block parts on internal msg queue
 		cs.sendInternalMessage(msgInfo{&ProposalMessage{proposal}, ""})
@@ -1784,7 +1793,7 @@ func (cs *State) addProposalBlockPart(msg *BlockPartMessage, peerID p2p.ID) (add
 		return added, err
 	}
 	if added && cs.ProposalBlockParts.IsComplete() {
-		fmt.Println("ProposalBlockParts complete", msg.Height, time.Now())
+		fmt.Println("ProposalBlockParts complete", msg.Height, cs.ProposalBlockParts.Total(), time.Now())
 		// Added and completed!
 		_, err = cdc.UnmarshalBinaryLengthPrefixedReader(
 			cs.ProposalBlockParts.GetReader(),
