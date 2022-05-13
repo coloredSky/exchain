@@ -721,9 +721,13 @@ func (cs *State) handleMsg(mi msgInfo) {
 		err = cs.setProposal(msg.Proposal)
 	case *BlockPartMessage:
 		// if the proposal is complete, we'll enterPrevote or tryFinalizeCommit
+		fmt.Println("handleMsg Get BlockPartMessage", msg.Height, msg.Part.Index, time.Now())
 		added, err = cs.addProposalBlockPart(msg, peerID)
 		if added {
+			fmt.Println("Added handleMsg Get BlockPartMessage", time.Now())
 			cs.statsMsgQueue <- mi
+		} else {
+			fmt.Println("Dropped handleMsg Get BlockPartMessage", time.Now(), err)
 		}
 
 		if err != nil && msg.Round != cs.Round {
@@ -1037,14 +1041,17 @@ func (cs *State) defaultDecideProposal(height int64, round int) {
 	// Make proposal
 	propBlockID := types.BlockID{Hash: block.Hash(), PartsHeader: blockParts.Header()}
 	proposal := types.NewProposal(height, round, cs.ValidRound, propBlockID)
+	fmt.Println("Create proposl", height, round, time.Now())
 	if err := cs.privValidator.SignProposal(cs.state.ChainID, proposal); err == nil {
-
+		fmt.Println("Sign proposl", height, time.Now())
 		// send proposal and block parts on internal msg queue
 		cs.sendInternalMessage(msgInfo{&ProposalMessage{proposal}, ""})
+		fmt.Println("After send internal  ProposalMessage", height, time.Now())
 		for i := 0; i < blockParts.Total(); i++ {
 			part := blockParts.GetPart(i)
 			cs.sendInternalMessage(msgInfo{&BlockPartMessage{cs.Height, cs.Round, part, cs.Deltas}, ""})
 		}
+		fmt.Println("After send internal  BlockPartMessage", height, blockParts.Total(), time.Now())
 		cs.Logger.Info("Signed proposal", "height", height, "round", round, "proposal", proposal)
 		cs.Logger.Debug(fmt.Sprintf("Signed proposal block: %v", block))
 	} else if !cs.replayMode {
@@ -1121,6 +1128,7 @@ func (cs *State) enterPrevote(height int64, round int) {
 		return
 	}
 
+	fmt.Println("enterPrevote", time.Now())
 	cs.initNewHeight()
 	cs.trc.Pin("Prevote-%d", round)
 
@@ -1769,6 +1777,7 @@ func (cs *State) addProposalBlockPart(msg *BlockPartMessage, peerID p2p.ID) (add
 		return added, err
 	}
 	if added && cs.ProposalBlockParts.IsComplete() {
+		fmt.Println("ProposalBlockParts complete", msg.Height, time.Now())
 		// Added and completed!
 		_, err = cdc.UnmarshalBinaryLengthPrefixedReader(
 			cs.ProposalBlockParts.GetReader(),
