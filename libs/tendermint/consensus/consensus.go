@@ -670,18 +670,23 @@ func (cs *State) receiveRoutine(maxSteps int) {
 
 		select {
 		case <-cs.txNotifier.TxsAvailable():
+			fmt.Println("handle handleTxsAvailable")
 			cs.handleTxsAvailable()
+			fmt.Println("End handle handleTxsAvailable")
 		case mi = <-cs.peerMsgQueue:
+			fmt.Println("handle peerMsgQueue")
 			cs.wal.Write(mi)
 			// handles proposals, block parts, votes
 			// may generate internal events (votes, complete proposals, 2/3 majorities)
 			cs.handleMsg(mi)
+			fmt.Println("End handle peerMsgQueue")
 		case mi = <-cs.internalMsgQueue:
+			fmt.Println("Receive internalMsgQueue", time.Now())
 			err := cs.wal.WriteSync(mi) // NOTE: fsync
 			if err != nil {
 				panic(fmt.Sprintf("Failed to write %v msg to consensus wal due to %v. Check your FS and restart the node", mi, err))
 			}
-
+			fmt.Println("After WriteSync", time.Now())
 			if _, ok := mi.Msg.(*VoteMessage); ok {
 				// we actually want to simulate failing during
 				// the previous WriteSync, but this isn't easy to do.
@@ -693,10 +698,12 @@ func (cs *State) receiveRoutine(maxSteps int) {
 			// handles proposals, block parts, votes
 			cs.handleMsg(mi)
 		case ti := <-cs.timeoutTicker.Chan(): // tockChan:
+			fmt.Println("handle timeoutTicker")
 			cs.wal.Write(ti)
 			// if the timeout is relevant to the rs
 			// go to the next step
 			cs.handleTimeout(ti, rs)
+			fmt.Println("End handle timeoutTicker")
 		case <-cs.Quit():
 			onExit(cs)
 			return
