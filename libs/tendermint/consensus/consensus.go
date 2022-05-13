@@ -670,16 +670,16 @@ func (cs *State) receiveRoutine(maxSteps int) {
 
 		select {
 		case <-cs.txNotifier.TxsAvailable():
-			fmt.Println("handle handleTxsAvailable")
+			fmt.Println("handle handleTxsAvailable", time.Now())
 			cs.handleTxsAvailable()
-			fmt.Println("End handle handleTxsAvailable")
+			fmt.Println("End handle handleTxsAvailable", time.Now())
 		case mi = <-cs.peerMsgQueue:
-			fmt.Println("handle peerMsgQueue")
+			fmt.Println("handle peerMsgQueue", time.Now())
 			cs.wal.Write(mi)
 			// handles proposals, block parts, votes
 			// may generate internal events (votes, complete proposals, 2/3 majorities)
 			cs.handleMsg(mi)
-			fmt.Println("End handle peerMsgQueue")
+			fmt.Println("End handle peerMsgQueue", time.Now())
 		case mi = <-cs.internalMsgQueue:
 			fmt.Println("Receive internalMsgQueue", time.Now())
 			err := cs.wal.WriteSync(mi) // NOTE: fsync
@@ -698,12 +698,12 @@ func (cs *State) receiveRoutine(maxSteps int) {
 			// handles proposals, block parts, votes
 			cs.handleMsg(mi)
 		case ti := <-cs.timeoutTicker.Chan(): // tockChan:
-			fmt.Println("handle timeoutTicker")
+			fmt.Println("handle timeoutTicker", time.Now())
 			cs.wal.Write(ti)
 			// if the timeout is relevant to the rs
 			// go to the next step
 			cs.handleTimeout(ti, rs)
-			fmt.Println("End handle timeoutTicker")
+			fmt.Println("End handle timeoutTicker", time.Now())
 		case <-cs.Quit():
 			onExit(cs)
 			return
