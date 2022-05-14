@@ -70,7 +70,7 @@ ifeq ($(WITH_TCMALLOC),true)
 	OS_NAME = $(shell uname)
 	LC_OS_NAME = $(shell echo $(OS_NAME) | tr '[A-Z]' '[a-z]')
 	ifeq ($(LC_OS_NAME), linux)
-		ldflags += -extldflags "-L ./libs/tcmalloc/ -Wl,-Bstatic -ljemalloc -Wl,-Bdynamic -lpthread -lstdc++ -lc"
+		ldflags += -extldflags "-L ./libs/tcmalloc/ -Wl,-Bstatic -ljemalloc -Wl,-Bdynamic -lpthread -lstdc++ -lc -ldl"
 	endif
 endif
 
